@@ -4,6 +4,11 @@ Clang-Tidy Checks
 =========================
 
 .. toctree::
+   FPGA-ID-dependent-backward-branch
+   FPGA-single-work-item-barrier
+   FPGA-struct-pack-align
+   OpenCL-pointer-restrictions
+   OpenCL-possibly-unreachable-barrier
    boost-use-to-string
    cert-dcl03-c (redirects to misc-static-assert) <cert-dcl03-c>
    cert-dcl50-cpp

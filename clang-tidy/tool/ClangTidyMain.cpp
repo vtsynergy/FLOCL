@@ -464,6 +464,16 @@ extern volatile int ReadabilityModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ReadabilityModuleAnchorDestination =
     ReadabilityModuleAnchorSource;
 
+// This anchor is used to force the linker to link the OpenCLModule
+extern volatile int OpenCLModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED OpenCLModuleAnchorDestination =
+    OpenCLModuleAnchorSource;
+
+// This anchor is used to force the linker to link the OpenCLModule
+extern volatile int FPGAModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED FPGAModuleAnchorDestination =
+    FPGAModuleAnchorSource;
+
 } // namespace tidy
 } // namespace clang
 
