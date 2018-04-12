@@ -23,12 +23,15 @@ namespace OpenCL {
 class PossiblyUnreachableBarrierCheck : public ClangTidyCheck {
 private:
   std::vector<const VarDecl *> IDDepVars;
+  std::vector<const FieldDecl *> IDDepFields;
 public:
   PossiblyUnreachableBarrierCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   const DeclRefExpr * hasIDDepDeclRef(const Expr * e);
+  const MemberExpr * hasIDDepMember(const Expr * e);
+  void preorderFlattenStmt(const Stmt * s, std::list<const Stmt *> * out);
 };
 
 } // namespace OpenCL

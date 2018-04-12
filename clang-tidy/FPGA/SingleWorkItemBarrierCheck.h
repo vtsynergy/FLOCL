@@ -21,11 +21,15 @@ namespace FPGA {
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/OpenCL-single-work-item-barrier.html
 class SingleWorkItemBarrierCheck : public ClangTidyCheck {
+const unsigned aoc_version;
+
 public:
   SingleWorkItemBarrierCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+      : ClangTidyCheck(Name, Context),
+	aoc_version(Options.get("aoc_version", 1600U)) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 };
 
 } // namespace FPGA

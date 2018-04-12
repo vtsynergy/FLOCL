@@ -27,7 +27,8 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
       //That are OpenCL kernels
       hasAttr(attr::Kind::OpenCLKernel),
       //And call a barrier function (either 1.x or 2.x version)
-      hasDescendant(callExpr(callee(
+      //hasDescendant(callExpr(callee(
+      forEachDescendant(callExpr(callee(
         functionDecl(anyOf(
           hasName("barrier"),
           hasName("work_group_barrier")
@@ -44,12 +45,23 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
-  // FIXME: Add callback implementation.
+  //TODO: Support reqd_work_group_size attribute (if it is anything other than (1,1,1) it will be interpreted as an NDRange (at least in 17.1, don't know about earlier)
   const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("function");
   const auto *MatchedBarrier = Result.Nodes.getNodeAs<CallExpr>("barrier");
-  diag(MatchedDecl->getLocation(), "Kernel function %0 does not call get_global_id or get_local_id and will be treated as single-work-item.\nBarrier call at %1 may error out")
+  if (aoc_version < 1701) {
+    diag(MatchedDecl->getLocation(), "Kernel function %0 does not call get_global_id or get_local_id and will be treated as single-work-item.\nBarrier call at %1 may error out")
       << MatchedDecl
       << MatchedBarrier->getLocStart().printToString(Result.Context->getSourceManager());
+  } else {
+    diag(MatchedDecl->getLocation(), "Kernel function %0 does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at %1 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient.")
+      << MatchedDecl
+      << MatchedBarrier->getLocStart().printToString(Result.Context->getSourceManager());
+
+  }
+}
+
+void SingleWorkItemBarrierCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "aoc_version", aoc_version);
 }
 
 } // namespace FPGA
