@@ -1,9 +1,8 @@
 //===--- MakeSharedCheck.cpp - clang-tidy----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,10 +19,11 @@ MakeSharedCheck::MakeSharedCheck(StringRef Name, ClangTidyContext *Context)
 
 MakeSharedCheck::SmartPtrTypeMatcher
 MakeSharedCheck::getSmartPointerTypeMatcher() const {
-  return qualType(hasDeclaration(classTemplateSpecializationDecl(
-      matchesName("::std::shared_ptr"), templateArgumentCountIs(1),
-      hasTemplateArgument(
-          0, templateArgument(refersToType(qualType().bind(PointerType)))))));
+  return qualType(hasUnqualifiedDesugaredType(
+      recordType(hasDeclaration(classTemplateSpecializationDecl(
+          hasName("::std::shared_ptr"), templateArgumentCountIs(1),
+          hasTemplateArgument(0, templateArgument(refersToType(
+                                     qualType().bind(PointerType)))))))));
 }
 
 } // namespace modernize

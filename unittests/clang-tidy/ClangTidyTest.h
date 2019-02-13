@@ -1,9 +1,8 @@
 //===--- ClangTidyTest.h - clang-tidy ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,6 +17,7 @@
 #include "clang/Tooling/Refactoring.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/Support/Path.h"
 #include <map>
 #include <memory>
 
@@ -82,24 +82,34 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
   ClangTidyContext Context(llvm::make_unique<DefaultOptionsProvider>(
       ClangTidyGlobalOptions(), Options));
   ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions,
+                       &DiagConsumer, false);
+  Context.setDiagnosticsEngine(&DE);
 
-  std::vector<std::string> ArgCXX11(1, "clang-tidy");
-  ArgCXX11.push_back("-fsyntax-only");
-  ArgCXX11.push_back("-std=c++11");
-  ArgCXX11.push_back("-Iinclude");
-  ArgCXX11.insert(ArgCXX11.end(), ExtraArgs.begin(), ExtraArgs.end());
-  ArgCXX11.push_back(Filename.str());
+  std::vector<std::string> Args(1, "clang-tidy");
+  Args.push_back("-fsyntax-only");
+  std::string extension(llvm::sys::path::extension(Filename.str()));
+  if (extension == ".m" || extension == ".mm") {
+    Args.push_back("-fobjc-abi-version=2");
+    Args.push_back("-fobjc-arc");
+  }
+  if (extension == ".cc" || extension == ".cpp" || extension == ".mm") {
+    Args.push_back("-std=c++11");
+  }
+  Args.push_back("-Iinclude");
+  Args.insert(Args.end(), ExtraArgs.begin(), ExtraArgs.end());
+  Args.push_back(Filename.str());
 
   ast_matchers::MatchFinder Finder;
-  llvm::IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new vfs::InMemoryFileSystem);
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
   llvm::IntrusiveRefCntPtr<FileManager> Files(
       new FileManager(FileSystemOptions(), InMemoryFileSystem));
 
   SmallVector<std::unique_ptr<ClangTidyCheck>, 1> Checks;
   CheckFactory<CheckList...>::createChecks(&Context, Checks);
   tooling::ToolInvocation Invocation(
-      ArgCXX11, new TestClangTidyAction(Checks, Finder, Context), Files.get());
+      Args, new TestClangTidyAction(Checks, Finder, Context), Files.get());
   InMemoryFileSystem->addFile(Filename, 0,
                               llvm::MemoryBuffer::getMemBuffer(Code));
   for (const auto &FileContent : PathsToContent) {
@@ -110,18 +120,28 @@ runCheckOnCode(StringRef Code, std::vector<ClangTidyError> *Errors = nullptr,
   Invocation.setDiagnosticConsumer(&DiagConsumer);
   if (!Invocation.run()) {
     std::string ErrorText;
-    for (const auto &Error : Context.getErrors()) {
+    for (const auto &Error : DiagConsumer.take()) {
       ErrorText += Error.Message.Message + "\n";
     }
     llvm::report_fatal_error(ErrorText);
   }
 
-  DiagConsumer.finish();
   tooling::Replacements Fixes;
-  for (const ClangTidyError &Error : Context.getErrors())
-    Fixes.insert(Error.Fix.begin(), Error.Fix.end());
+  std::vector<ClangTidyError> Diags = DiagConsumer.take();
+  for (const ClangTidyError &Error : Diags) {
+    for (const auto &FileAndFixes : Error.Fix) {
+      for (const auto &Fix : FileAndFixes.second) {
+        auto Err = Fixes.add(Fix);
+        // FIXME: better error handling. Keep the behavior for now.
+        if (Err) {
+          llvm::errs() << llvm::toString(std::move(Err)) << "\n";
+          return "";
+        }
+      }
+    }
+  }
   if (Errors)
-    *Errors = Context.getErrors();
+    *Errors = std::move(Diags);
   auto Result = tooling::applyAllReplacements(Code, Fixes);
   if (!Result) {
     // FIXME: propogate the error.

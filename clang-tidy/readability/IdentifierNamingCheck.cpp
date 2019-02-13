@@ -1,21 +1,21 @@
 //===--- IdentifierNamingCheck.cpp - clang-tidy ---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "IdentifierNamingCheck.h"
 
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/Format.h"
+#include "../utils/ASTUtils.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Format.h"
 
 #define DEBUG_TYPE "clang-tidy"
 
@@ -49,7 +49,7 @@ struct DenseMapInfo<
     return Val.first.getRawEncoding() + SecondHash(Val.second);
   }
 
-  static bool isEqual(NamingCheckId LHS, NamingCheckId RHS) {
+  static bool isEqual(const NamingCheckId &LHS, const NamingCheckId &RHS) {
     if (RHS == getEmptyKey())
       return LHS == getEmptyKey();
     if (RHS == getTombstoneKey())
@@ -77,8 +77,12 @@ namespace readability {
     m(ClassConstant) \
     m(ClassMember) \
     m(GlobalConstant) \
+    m(GlobalConstantPointer) \
+    m(GlobalPointer) \
     m(GlobalVariable) \
     m(LocalConstant) \
+    m(LocalConstantPointer) \
+    m(LocalPointer) \
     m(LocalVariable) \
     m(StaticConstant) \
     m(StaticVariable) \
@@ -87,6 +91,8 @@ namespace readability {
     m(ConstantParameter) \
     m(ParameterPack) \
     m(Parameter) \
+    m(PointerParameter) \
+    m(ConstantPointerParameter) \
     m(AbstractClass) \
     m(Struct) \
     m(Class) \
@@ -109,6 +115,7 @@ namespace readability {
     m(TemplateParameter) \
     m(TypeAlias) \
     m(MacroDefinition) \
+    m(ObjcIvar) \
 
 enum StyleKind {
 #define ENUMERATE(v) SK_ ## v,
@@ -158,19 +165,28 @@ IdentifierNamingCheck::IdentifierNamingCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {
   auto const fromString = [](StringRef Str) {
-    return llvm::StringSwitch<CaseType>(Str)
+    return llvm::StringSwitch<llvm::Optional<CaseType>>(Str)
+        .Case("aNy_CasE", CT_AnyCase)
         .Case("lower_case", CT_LowerCase)
         .Case("UPPER_CASE", CT_UpperCase)
         .Case("camelBack", CT_CamelBack)
         .Case("CamelCase", CT_CamelCase)
-        .Default(CT_AnyCase);
+        .Case("Camel_Snake_Case", CT_CamelSnakeCase)
+        .Case("camel_Snake_Back", CT_CamelSnakeBack)
+        .Default(llvm::None);
   };
 
   for (auto const &Name : StyleNames) {
-    NamingStyles.push_back(
-        NamingStyle(fromString(Options.get((Name + "Case").str(), "")),
-                    Options.get((Name + "Prefix").str(), ""),
-                    Options.get((Name + "Suffix").str(), "")));
+    auto const caseOptional =
+        fromString(Options.get((Name + "Case").str(), ""));
+    auto prefix = Options.get((Name + "Prefix").str(), "");
+    auto postfix = Options.get((Name + "Suffix").str(), "");
+
+    if (caseOptional || !prefix.empty() || !postfix.empty()) {
+      NamingStyles.push_back(NamingStyle(caseOptional, prefix, postfix));
+    } else {
+      NamingStyles.push_back(llvm::None);
+    }
   }
 
   IgnoreFailedSplit = Options.get("IgnoreFailedSplit", 0);
@@ -189,18 +205,26 @@ void IdentifierNamingCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
       return "UPPER_CASE";
     case CT_CamelCase:
       return "CamelCase";
+    case CT_CamelSnakeCase:
+      return "Camel_Snake_Case";
+    case CT_CamelSnakeBack:
+      return "camel_Snake_Back";
     }
 
     llvm_unreachable("Unknown Case Type");
   };
 
   for (size_t i = 0; i < SK_Count; ++i) {
-    Options.store(Opts, (StyleNames[i] + "Case").str(),
-                  toString(NamingStyles[i].Case));
-    Options.store(Opts, (StyleNames[i] + "Prefix").str(),
-                  NamingStyles[i].Prefix);
-    Options.store(Opts, (StyleNames[i] + "Suffix").str(),
-                  NamingStyles[i].Suffix);
+    if (NamingStyles[i]) {
+      if (NamingStyles[i]->Case) {
+        Options.store(Opts, (StyleNames[i] + "Case").str(),
+                      toString(*NamingStyles[i]->Case));
+      }
+      Options.store(Opts, (StyleNames[i] + "Prefix").str(),
+                    NamingStyles[i]->Prefix);
+      Options.store(Opts, (StyleNames[i] + "Suffix").str(),
+                    NamingStyles[i]->Suffix);
+    }
   }
 
   Options.store(Opts, "IgnoreFailedSplit", IgnoreFailedSplit);
@@ -230,6 +254,8 @@ static bool matchesStyle(StringRef Name,
       llvm::Regex("^[a-z][a-zA-Z0-9]*$"),
       llvm::Regex("^[A-Z][A-Z0-9_]*$"),
       llvm::Regex("^[A-Z][a-zA-Z0-9]*$"),
+      llvm::Regex("^[A-Z]([a-z0-9]*(_[A-Z])?)*"),
+      llvm::Regex("^[a-z]([a-z0-9]*(_[A-Z])?)*"),
   };
 
   bool Matches = true;
@@ -243,7 +269,12 @@ static bool matchesStyle(StringRef Name,
   else
     Matches = false;
 
-  if (!Matchers[static_cast<size_t>(Style.Case)].match(Name))
+  // Ensure the name doesn't have any extra underscores beyond those specified
+  // in the prefix and suffix.
+  if (Name.startswith("_") || Name.endswith("_"))
+    Matches = false;
+
+  if (Style.Case && !Matchers[static_cast<size_t>(*Style.Case)].match(Name))
     Matches = false;
 
   return Matches;
@@ -319,44 +350,78 @@ static std::string fixupWithCase(StringRef Name,
       }
     }
     break;
+
+  case IdentifierNamingCheck::CT_CamelSnakeCase:
+    for (auto const &Word : Words) {
+      if (&Word != &Words.front())
+        Fixup += "_";
+      Fixup += Word.substr(0, 1).upper();
+      Fixup += Word.substr(1).lower();
+    }
+    break;
+
+  case IdentifierNamingCheck::CT_CamelSnakeBack:
+    for (auto const &Word : Words) {
+      if (&Word != &Words.front()) {
+        Fixup += "_";
+        Fixup += Word.substr(0, 1).upper();
+      } else {
+        Fixup += Word.substr(0, 1).lower();
+      }
+      Fixup += Word.substr(1).lower();
+    }
+    break;
   }
 
   return Fixup;
 }
 
-static std::string fixupWithStyle(StringRef Name,
-                                  IdentifierNamingCheck::NamingStyle Style) {
-  return Style.Prefix + fixupWithCase(Name, Style.Case) + Style.Suffix;
+static std::string
+fixupWithStyle(StringRef Name,
+               const IdentifierNamingCheck::NamingStyle &Style) {
+  const std::string Fixed = fixupWithCase(
+      Name, Style.Case.getValueOr(IdentifierNamingCheck::CaseType::CT_AnyCase));
+  StringRef Mid = StringRef(Fixed).trim("_");
+  if (Mid.empty())
+    Mid = "_";
+  return (Style.Prefix + Mid + Style.Suffix).str();
 }
 
 static StyleKind findStyleKind(
     const NamedDecl *D,
-    const std::vector<IdentifierNamingCheck::NamingStyle> &NamingStyles) {
-  if (isa<TypedefDecl>(D) && NamingStyles[SK_Typedef].isSet())
+    const std::vector<llvm::Optional<IdentifierNamingCheck::NamingStyle>>
+        &NamingStyles) {
+  assert(D && D->getIdentifier() && !D->getName().empty() && !D->isImplicit() &&
+         "Decl must be an explicit identifier with a name.");
+
+  if (isa<ObjCIvarDecl>(D) && NamingStyles[SK_ObjcIvar])
+    return SK_ObjcIvar;
+  
+  if (isa<TypedefDecl>(D) && NamingStyles[SK_Typedef])
     return SK_Typedef;
 
-  if (isa<TypeAliasDecl>(D) && NamingStyles[SK_TypeAlias].isSet())
+  if (isa<TypeAliasDecl>(D) && NamingStyles[SK_TypeAlias])
     return SK_TypeAlias;
 
   if (const auto *Decl = dyn_cast<NamespaceDecl>(D)) {
     if (Decl->isAnonymousNamespace())
       return SK_Invalid;
 
-    if (Decl->isInline() && NamingStyles[SK_InlineNamespace].isSet())
+    if (Decl->isInline() && NamingStyles[SK_InlineNamespace])
       return SK_InlineNamespace;
 
-    if (NamingStyles[SK_Namespace].isSet())
+    if (NamingStyles[SK_Namespace])
       return SK_Namespace;
   }
 
-  if (isa<EnumDecl>(D) && NamingStyles[SK_Enum].isSet())
+  if (isa<EnumDecl>(D) && NamingStyles[SK_Enum])
     return SK_Enum;
 
   if (isa<EnumConstantDecl>(D)) {
-    if (NamingStyles[SK_EnumConstant].isSet())
+    if (NamingStyles[SK_EnumConstant])
       return SK_EnumConstant;
 
-    if (NamingStyles[SK_Constant].isSet())
+    if (NamingStyles[SK_Constant])
       return SK_Constant;
 
     return SK_Invalid;
@@ -366,26 +431,29 @@ static StyleKind findStyleKind(
     if (Decl->isAnonymousStructOrUnion())
       return SK_Invalid;
 
+    if (!Decl->getCanonicalDecl()->isThisDeclarationADefinition())
+      return SK_Invalid;
+
     if (Decl->hasDefinition() && Decl->isAbstract() &&
-        NamingStyles[SK_AbstractClass].isSet())
+        NamingStyles[SK_AbstractClass])
       return SK_AbstractClass;
 
-    if (Decl->isStruct() && NamingStyles[SK_Struct].isSet())
+    if (Decl->isStruct() && NamingStyles[SK_Struct])
       return SK_Struct;
 
-    if (Decl->isStruct() && NamingStyles[SK_Class].isSet())
+    if (Decl->isStruct() && NamingStyles[SK_Class])
       return SK_Class;
 
-    if (Decl->isClass() && NamingStyles[SK_Class].isSet())
+    if (Decl->isClass() && NamingStyles[SK_Class])
       return SK_Class;
 
-    if (Decl->isClass() && NamingStyles[SK_Struct].isSet())
+    if (Decl->isClass() && NamingStyles[SK_Struct])
       return SK_Struct;
 
-    if (Decl->isUnion() && NamingStyles[SK_Union].isSet())
+    if (Decl->isUnion() && NamingStyles[SK_Union])
       return SK_Union;
 
-    if (Decl->isEnum() && NamingStyles[SK_Enum].isSet())
+    if (Decl->isEnum() && NamingStyles[SK_Enum])
       return SK_Enum;
 
     return SK_Invalid;
@@ -394,26 +462,24 @@ static StyleKind findStyleKind(
   if (const auto *Decl = dyn_cast<FieldDecl>(D)) {
     QualType Type = Decl->getType();
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        NamingStyles[SK_ConstantMember].isSet())
-      return SK_ConstantMember;
+    if (!Type.isNull() && Type.isConstQualified()) {
+      if (NamingStyles[SK_ConstantMember])
+        return SK_ConstantMember;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        NamingStyles[SK_Constant].isSet())
-      return SK_Constant;
+      if (NamingStyles[SK_Constant])
+        return SK_Constant;
+    }
 
-    if (Decl->getAccess() == AS_private &&
-        NamingStyles[SK_PrivateMember].isSet())
+    if (Decl->getAccess() == AS_private && NamingStyles[SK_PrivateMember])
       return SK_PrivateMember;
 
-    if (Decl->getAccess() == AS_protected &&
-        NamingStyles[SK_ProtectedMember].isSet())
+    if (Decl->getAccess() == AS_protected && NamingStyles[SK_ProtectedMember])
       return SK_ProtectedMember;
 
-    if (Decl->getAccess() == AS_public && NamingStyles[SK_PublicMember].isSet())
+    if (Decl->getAccess() == AS_public && NamingStyles[SK_PublicMember])
       return SK_PublicMember;
 
-    if (NamingStyles[SK_Member].isSet())
+    if (NamingStyles[SK_Member])
       return SK_Member;
 
     return SK_Invalid;
@@ -422,21 +488,27 @@ static StyleKind findStyleKind(
   if (const auto *Decl = dyn_cast<ParmVarDecl>(D)) {
     QualType Type = Decl->getType();
 
-    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprVariable].isSet())
+    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprVariable])
       return SK_ConstexprVariable;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        NamingStyles[SK_ConstantParameter].isSet())
-      return SK_ConstantParameter;
+    if (!Type.isNull() && Type.isConstQualified()) {
+      if (Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_ConstantPointerParameter])
+        return SK_ConstantPointerParameter;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        NamingStyles[SK_Constant].isSet())
-      return SK_Constant;
+      if (NamingStyles[SK_ConstantParameter])
+        return SK_ConstantParameter;
 
-    if (Decl->isParameterPack() && NamingStyles[SK_ParameterPack].isSet())
+      if (NamingStyles[SK_Constant])
+        return SK_Constant;
+    }
+
+    if (Decl->isParameterPack() && NamingStyles[SK_ParameterPack])
       return SK_ParameterPack;
 
-    if (NamingStyles[SK_Parameter].isSet())
+    if (!Type.isNull() && Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_PointerParameter])
+        return SK_PointerParameter;
+
+    if (NamingStyles[SK_Parameter])
       return SK_Parameter;
 
     return SK_Invalid;
@@ -445,51 +517,57 @@ static StyleKind findStyleKind(
   if (const auto *Decl = dyn_cast<VarDecl>(D)) {
     QualType Type = Decl->getType();
 
-    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprVariable].isSet())
+    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprVariable])
       return SK_ConstexprVariable;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        Decl->isStaticDataMember() && NamingStyles[SK_ClassConstant].isSet())
-      return SK_ClassConstant;
+    if (!Type.isNull() && Type.isConstQualified()) {
+      if (Decl->isStaticDataMember() && NamingStyles[SK_ClassConstant])
+        return SK_ClassConstant;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        Decl->isFileVarDecl() && NamingStyles[SK_GlobalConstant].isSet())
-      return SK_GlobalConstant;
+      if (Decl->isFileVarDecl() && Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_GlobalConstantPointer])
+        return SK_GlobalConstantPointer;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        Decl->isStaticLocal() && NamingStyles[SK_StaticConstant].isSet())
-      return SK_StaticConstant;
+      if (Decl->isFileVarDecl() && NamingStyles[SK_GlobalConstant])
+        return SK_GlobalConstant;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        Decl->isLocalVarDecl() && NamingStyles[SK_LocalConstant].isSet())
-      return SK_LocalConstant;
+      if (Decl->isStaticLocal() && NamingStyles[SK_StaticConstant])
+        return SK_StaticConstant;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        Decl->isFunctionOrMethodVarDecl() &&
-        NamingStyles[SK_LocalConstant].isSet())
-      return SK_LocalConstant;
+      if (Decl->isLocalVarDecl() && Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_LocalConstantPointer])
+        return SK_LocalConstantPointer;
 
-    if (!Type.isNull() && Type.isLocalConstQualified() &&
-        NamingStyles[SK_Constant].isSet())
-      return SK_Constant;
+      if (Decl->isLocalVarDecl() && NamingStyles[SK_LocalConstant])
+        return SK_LocalConstant;
 
-    if (Decl->isStaticDataMember() && NamingStyles[SK_ClassMember].isSet())
+      if (Decl->isFunctionOrMethodVarDecl() && NamingStyles[SK_LocalConstant])
+        return SK_LocalConstant;
+
+      if (NamingStyles[SK_Constant])
+        return SK_Constant;
+    }
+
+    if (Decl->isStaticDataMember() && NamingStyles[SK_ClassMember])
       return SK_ClassMember;
 
-    if (Decl->isFileVarDecl() && NamingStyles[SK_GlobalVariable].isSet())
+    if (Decl->isFileVarDecl() && Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_GlobalPointer])
+      return SK_GlobalPointer;
+
+    if (Decl->isFileVarDecl() && NamingStyles[SK_GlobalVariable])
       return SK_GlobalVariable;
 
-    if (Decl->isStaticLocal() && NamingStyles[SK_StaticVariable].isSet())
+    if (Decl->isStaticLocal() && NamingStyles[SK_StaticVariable])
       return SK_StaticVariable;
+ 
+    if (Decl->isLocalVarDecl() && Type.getTypePtr()->isAnyPointerType() && NamingStyles[SK_LocalPointer])
+      return SK_LocalPointer;
 
-    if (Decl->isLocalVarDecl() && NamingStyles[SK_LocalVariable].isSet())
+    if (Decl->isLocalVarDecl() && NamingStyles[SK_LocalVariable])
       return SK_LocalVariable;
 
-    if (Decl->isFunctionOrMethodVarDecl() &&
-        NamingStyles[SK_LocalVariable].isSet())
+    if (Decl->isFunctionOrMethodVarDecl() && NamingStyles[SK_LocalVariable])
       return SK_LocalVariable;
 
-    if (NamingStyles[SK_Variable].isSet())
+    if (NamingStyles[SK_Variable])
       return SK_Variable;
 
     return SK_Invalid;
@@ -497,38 +575,34 @@ static StyleKind findStyleKind(
 
   if (const auto *Decl = dyn_cast<CXXMethodDecl>(D)) {
     if (Decl->isMain() || !Decl->isUserProvided() ||
-        Decl->isUsualDeallocationFunction() ||
-        Decl->isCopyAssignmentOperator() || Decl->isMoveAssignmentOperator() ||
         Decl->size_overridden_methods() > 0)
       return SK_Invalid;
 
-    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprMethod].isSet())
+    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprMethod])
       return SK_ConstexprMethod;
 
-    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprFunction].isSet())
+    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprFunction])
       return SK_ConstexprFunction;
 
-    if (Decl->isStatic() && NamingStyles[SK_ClassMethod].isSet())
+    if (Decl->isStatic() && NamingStyles[SK_ClassMethod])
       return SK_ClassMethod;
 
-    if (Decl->isVirtual() && NamingStyles[SK_VirtualMethod].isSet())
+    if (Decl->isVirtual() && NamingStyles[SK_VirtualMethod])
       return SK_VirtualMethod;
 
-    if (Decl->getAccess() == AS_private &&
-        NamingStyles[SK_PrivateMethod].isSet())
+    if (Decl->getAccess() == AS_private && NamingStyles[SK_PrivateMethod])
       return SK_PrivateMethod;
 
-    if (Decl->getAccess() == AS_protected &&
-        NamingStyles[SK_ProtectedMethod].isSet())
+    if (Decl->getAccess() == AS_protected && NamingStyles[SK_ProtectedMethod])
       return SK_ProtectedMethod;
 
-    if (Decl->getAccess() == AS_public && NamingStyles[SK_PublicMethod].isSet())
+    if (Decl->getAccess() == AS_public && NamingStyles[SK_PublicMethod])
       return SK_PublicMethod;
 
-    if (NamingStyles[SK_Method].isSet())
+    if (NamingStyles[SK_Method])
       return SK_Method;
 
-    if (NamingStyles[SK_Function].isSet())
+    if (NamingStyles[SK_Function])
       return SK_Function;
 
     return SK_Invalid;
@@ -538,41 +612,41 @@ static StyleKind findStyleKind(
     if (Decl->isMain())
       return SK_Invalid;
 
-    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprFunction].isSet())
+    if (Decl->isConstexpr() && NamingStyles[SK_ConstexprFunction])
       return SK_ConstexprFunction;
 
-    if (Decl->isGlobal() && NamingStyles[SK_GlobalFunction].isSet())
+    if (Decl->isGlobal() && NamingStyles[SK_GlobalFunction])
       return SK_GlobalFunction;
 
-    if (NamingStyles[SK_Function].isSet())
+    if (NamingStyles[SK_Function])
       return SK_Function;
   }
 
   if (isa<TemplateTypeParmDecl>(D)) {
-    if (NamingStyles[SK_TypeTemplateParameter].isSet())
+    if (NamingStyles[SK_TypeTemplateParameter])
       return SK_TypeTemplateParameter;
 
-    if (NamingStyles[SK_TemplateParameter].isSet())
+    if (NamingStyles[SK_TemplateParameter])
       return SK_TemplateParameter;
 
     return SK_Invalid;
   }
 
   if (isa<NonTypeTemplateParmDecl>(D)) {
-    if (NamingStyles[SK_ValueTemplateParameter].isSet())
+    if (NamingStyles[SK_ValueTemplateParameter])
       return SK_ValueTemplateParameter;
 
-    if (NamingStyles[SK_TemplateParameter].isSet())
+    if (NamingStyles[SK_TemplateParameter])
       return SK_TemplateParameter;
 
     return SK_Invalid;
   }
 
   if (isa<TemplateTemplateParmDecl>(D)) {
-    if (NamingStyles[SK_TemplateTemplateParameter].isSet())
+    if (NamingStyles[SK_TemplateTemplateParameter])
       return SK_TemplateTemplateParameter;
 
-    if (NamingStyles[SK_TemplateParameter].isSet())
+    if (NamingStyles[SK_TemplateParameter])
       return SK_TemplateParameter;
 
     return SK_Invalid;
@@ -583,27 +657,41 @@ static StyleKind findStyleKind(
 
 static void addUsage(IdentifierNamingCheck::NamingCheckFailureMap &Failures,
                      const IdentifierNamingCheck::NamingCheckId &Decl,
-                     SourceRange Range) {
+                     SourceRange Range, SourceManager *SourceMgr = nullptr) {
   // Do nothing if the provided range is invalid.
   if (Range.getBegin().isInvalid() || Range.getEnd().isInvalid())
+    return;
+
+  // If we have a source manager, use it to convert to the spelling location for
+  // performing the fix. This is necessary because macros can map the same
+  // spelling location to different source locations, and we only want to fix
+  // the token once, before it is expanded by the macro.
+  SourceLocation FixLocation = Range.getBegin();
+  if (SourceMgr)
+    FixLocation = SourceMgr->getSpellingLoc(FixLocation);
+  if (FixLocation.isInvalid())
     return;
 
   // Try to insert the identifier location in the Usages map, and bail out if it
   // is already in there
   auto &Failure = Failures[Decl];
-  if (!Failure.RawUsageLocs.insert(Range.getBegin().getRawEncoding()).second)
+  if (!Failure.RawUsageLocs.insert(FixLocation.getRawEncoding()).second)
     return;
 
-  Failure.ShouldFix = Failure.ShouldFix && !Range.getBegin().isMacroID() &&
-                      !Range.getEnd().isMacroID();
+  if (!Failure.ShouldFix)
+    return;
+
+  Failure.ShouldFix = utils::rangeCanBeFixed(Range, SourceMgr);
 }
 
 /// Convenience method when the usage to be added is a NamedDecl
 static void addUsage(IdentifierNamingCheck::NamingCheckFailureMap &Failures,
-                     const NamedDecl *Decl, SourceRange Range) {
-  return addUsage(Failures, IdentifierNamingCheck::NamingCheckId(
-                                Decl->getLocation(), Decl->getNameAsString()),
-                  Range);
+                     const NamedDecl *Decl, SourceRange Range,
+                     SourceManager *SourceMgr = nullptr) {
+  return addUsage(Failures,
+                  IdentifierNamingCheck::NamingCheckId(Decl->getLocation(),
+                                                       Decl->getNameAsString()),
+                  Range, SourceMgr);
 }
 
 void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
@@ -614,6 +702,16 @@ void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
 
     addUsage(NamingCheckFailures, Decl->getParent(),
              Decl->getNameInfo().getSourceRange());
+
+    for (const auto *Init : Decl->inits()) {
+      if (!Init->isWritten() || Init->isInClassMemberInitializer())
+        continue;
+      if (const auto *FD = Init->getAnyMember())
+        addUsage(NamingCheckFailures, FD,
+                 SourceRange(Init->getMemberLocation()));
+      // Note: delegating constructors and base class initializers are handled
+      // via the "typeLoc" matcher.
+    }
     return;
   }
 
@@ -690,7 +788,8 @@ void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
 
   if (const auto *DeclRef = Result.Nodes.getNodeAs<DeclRefExpr>("declRef")) {
     SourceRange Range = DeclRef->getNameInfo().getSourceRange();
-    addUsage(NamingCheckFailures, DeclRef->getDecl(), Range);
+    addUsage(NamingCheckFailures, DeclRef->getDecl(), Range,
+             Result.SourceManager);
     return;
   }
 
@@ -734,7 +833,10 @@ void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
     if (SK == SK_Invalid)
       return;
 
-    NamingStyle Style = NamingStyles[SK];
+    if (!NamingStyles[SK])
+      return;
+
+    const NamingStyle &Style = *NamingStyles[SK];
     StringRef Name = Decl->getName();
     if (matchesStyle(Name, Style))
       return;
@@ -745,10 +847,10 @@ void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
     std::string Fixup = fixupWithStyle(Name, Style);
     if (StringRef(Fixup).equals(Name)) {
       if (!IgnoreFailedSplit) {
-        DEBUG(llvm::dbgs()
-              << Decl->getLocStart().printToString(*Result.SourceManager)
-              << llvm::format(": unable to split words for %s '%s'\n",
-                              KindName.c_str(), Name));
+        LLVM_DEBUG(llvm::dbgs()
+                   << Decl->getBeginLoc().printToString(*Result.SourceManager)
+                   << llvm::format(": unable to split words for %s '%s'\n",
+                                   KindName.c_str(), Name.str().c_str()));
       }
     } else {
       NamingCheckFailure &Failure = NamingCheckFailures[NamingCheckId(
@@ -767,8 +869,11 @@ void IdentifierNamingCheck::check(const MatchFinder::MatchResult &Result) {
 void IdentifierNamingCheck::checkMacro(SourceManager &SourceMgr,
                                        const Token &MacroNameTok,
                                        const MacroInfo *MI) {
+  if (!NamingStyles[SK_MacroDefinition])
+    return;
+
   StringRef Name = MacroNameTok.getIdentifierInfo()->getName();
-  NamingStyle Style = NamingStyles[SK_MacroDefinition];
+  const NamingStyle &Style = *NamingStyles[SK_MacroDefinition];
   if (matchesStyle(Name, Style))
     return;
 
@@ -779,10 +884,10 @@ void IdentifierNamingCheck::checkMacro(SourceManager &SourceMgr,
   std::string Fixup = fixupWithStyle(Name, Style);
   if (StringRef(Fixup).equals(Name)) {
     if (!IgnoreFailedSplit) {
-      DEBUG(
-          llvm::dbgs() << MacroNameTok.getLocation().printToString(SourceMgr)
-                       << llvm::format(": unable to split words for %s '%s'\n",
-                                       KindName.c_str(), Name));
+      LLVM_DEBUG(llvm::dbgs()
+                 << MacroNameTok.getLocation().printToString(SourceMgr)
+                 << llvm::format(": unable to split words for %s '%s'\n",
+                                 KindName.c_str(), Name.str().c_str()));
     }
   } else {
     NamingCheckId ID(MI->getDefinitionLoc(), Name);

@@ -1,11 +1,10 @@
-//===--- PPCallbacksTracker.h - Preprocessor tracking -*- C++ -*---------===//
+//===--- PPCallbacksTracker.h - Preprocessor tracking -----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 ///
 /// \file
 /// \brief Classes and definitions for preprocessor tracking.
@@ -17,13 +16,19 @@
 /// record the preprocessor callback name and arguments in high-level string
 /// form for later inspection.
 ///
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #ifndef PPTRACE_PPCALLBACKSTRACKER_H
 #define PPTRACE_PPCALLBACKSTRACKER_H
 
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Basic/SourceManager.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringRef.h"
+#include <string>
+#include <vector>
 
 /// \brief This class represents one callback function argument by name
 ///   and value.
@@ -31,7 +36,7 @@ class Argument {
 public:
   Argument(llvm::StringRef Name, llvm::StringRef Value)
       : Name(Name), Value(Value) {}
-  Argument() {}
+  Argument() = default;
 
   std::string Name;
   std::string Value;
@@ -42,7 +47,7 @@ public:
 class CallbackCall {
 public:
   CallbackCall(llvm::StringRef Name) : Name(Name) {}
-  CallbackCall() {}
+  CallbackCall() = default;
 
   std::string Name;
   std::vector<Argument> Arguments;
@@ -96,7 +101,8 @@ public:
                           const clang::FileEntry *File,
                           llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath,
-                          const clang::Module *Imported) override;
+                          const clang::Module *Imported,
+                          clang::SrcMgr::CharacteristicKind FileType) override;
   void moduleImport(clang::SourceLocation ImportLoc, clang::ModuleIdPath Path,
                     const clang::Module *Imported) override;
   void EndOfMainFile() override;
@@ -134,11 +140,13 @@ public:
   void MacroDefined(const clang::Token &MacroNameTok,
                     const clang::MacroDirective *MD) override;
   void MacroUndefined(const clang::Token &MacroNameTok,
-                      const clang::MacroDefinition &MD) override;
+                      const clang::MacroDefinition &MD,
+                      const clang::MacroDirective *Undef) override;
   void Defined(const clang::Token &MacroNameTok,
                const clang::MacroDefinition &MD,
                clang::SourceRange Range) override;
-  void SourceRangeSkipped(clang::SourceRange Range) override;
+  void SourceRangeSkipped(clang::SourceRange Range,
+                          clang::SourceLocation EndifLoc) override;
   void If(clang::SourceLocation Loc, clang::SourceRange ConditionRange,
           ConditionValueKind ConditionValue) override;
   void Elif(clang::SourceLocation Loc, clang::SourceRange ConditionRange,

@@ -6,6 +6,7 @@ add_clang_library(clangIncludeFixer
   IncludeFixer.cpp
   IncludeFixerContext.cpp
   InMemorySymbolIndex.cpp
+  FuzzySymbolIndex.cpp
   SymbolIndexManager.cpp
   YamlSymbolIndex.cpp
 
@@ -17,10 +18,12 @@ add_clang_library(clangIncludeFixer
   clangLex
   clangParse
   clangSema
+  clangSerialization
   clangTooling
   clangToolingCore
   findAllSymbols
   )
 
+add_subdirectory(plugin)
 add_subdirectory(tool)
 add_subdirectory(find-all-symbols)

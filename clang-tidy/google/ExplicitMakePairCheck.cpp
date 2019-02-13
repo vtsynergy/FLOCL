@@ -1,9 +1,8 @@
 //===--- ExplicitMakePairCheck.cpp - clang-tidy -----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,8 +24,8 @@ namespace tidy {
 namespace google {
 namespace build {
 
-void
-ExplicitMakePairCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
+void ExplicitMakePairCheck::registerMatchers(
+    ast_matchers::MatchFinder *Finder) {
   // Only register the matchers for C++; the functionality currently does not
   // provide any benefit to other languages, despite being benign.
   if (!getLangOpts().CPlusPlus)
@@ -39,7 +38,8 @@ ExplicitMakePairCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
                callee(expr(ignoringParenImpCasts(
                    declRefExpr(hasExplicitTemplateArgs(),
                                to(functionDecl(hasName("::std::make_pair"))))
-                       .bind("declref"))))).bind("call"),
+                       .bind("declref")))))
+          .bind("call"),
       this);
 }
 
@@ -59,15 +59,15 @@ void ExplicitMakePairCheck::check(const MatchFinder::MatchResult &Result) {
   // make_pair.
   if (Arg0->getType() != Call->getArg(0)->getType() ||
       Arg1->getType() != Call->getArg(1)->getType()) {
-    diag(Call->getLocStart(), "for C++11-compatibility, use pair directly")
+    diag(Call->getBeginLoc(), "for C++11-compatibility, use pair directly")
         << FixItHint::CreateReplacement(
-            SourceRange(DeclRef->getLocStart(), DeclRef->getLAngleLoc()),
-            "std::pair<");
+               SourceRange(DeclRef->getBeginLoc(), DeclRef->getLAngleLoc()),
+               "std::pair<");
   } else {
-    diag(Call->getLocStart(),
+    diag(Call->getBeginLoc(),
          "for C++11-compatibility, omit template arguments from make_pair")
         << FixItHint::CreateRemoval(
-            SourceRange(DeclRef->getLAngleLoc(), DeclRef->getRAngleLoc()));
+               SourceRange(DeclRef->getLAngleLoc(), DeclRef->getRAngleLoc()));
   }
 }
 

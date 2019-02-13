@@ -1,9 +1,8 @@
 //===--- SymbolReporter.h - Symbol Reporter ---------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,8 +19,8 @@ class SymbolReporter {
 public:
   virtual ~SymbolReporter() = default;
 
-  virtual void reportSymbol(llvm::StringRef FileName,
-                            const SymbolInfo &Symbol) = 0;
+  virtual void reportSymbols(llvm::StringRef FileName,
+                             const SymbolInfo::SignalMap &Symbols) = 0;
 };
 
 } // namespace find_all_symbols

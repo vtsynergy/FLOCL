@@ -7,12 +7,39 @@ readability-function-size
 
 Checks for large functions based on various metrics.
 
-These options are supported:
+Options
+-------
 
-  * :option:`LineThreshold` - flag functions exceeding this number of lines. The
-    default is `-1` (ignore the number of lines).
-  * :option:`StatementThreshold` - flag functions exceeding this number of
-    statements. This may differ significantly from the number of lines for
-    macro-heavy code. The default is `800`.
-  * :option:`BranchThreshold` - flag functions exceeding this number of control
-    statements. The default is `-1` (ignore the number of branches).
+.. option:: LineThreshold
+
+   Flag functions exceeding this number of lines. The default is `-1` (ignore
+   the number of lines).
+
+.. option:: StatementThreshold
+
+   Flag functions exceeding this number of statements. This may differ
+   significantly from the number of lines for macro-heavy code. The default is
+   `800`.
+
+.. option:: BranchThreshold
+
+   Flag functions exceeding this number of control statements. The default is
+   `-1` (ignore the number of branches).
+
+.. option:: ParameterThreshold
+
+   Flag functions that exceed a specified number of parameters. The default
+   is `-1` (ignore the number of parameters).
+
+.. option:: NestingThreshold
+
+    Flag compound statements which create next nesting level after
+    `NestingThreshold`. This may differ significantly from the expected value
+    for macro-heavy code. The default is `-1` (ignore the nesting level).
+
+.. option:: VariableThreshold
+
+   Flag functions exceeding this number of variables declared in the body.
+   The default is `-1` (ignore the number of variables).
+   Please note that function parameters and variables declared in lambdas,
+   GNU Statement Expressions, and nested class inline functions are not counted.

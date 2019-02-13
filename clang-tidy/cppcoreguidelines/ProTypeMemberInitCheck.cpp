@@ -1,9 +1,8 @@
 //===--- ProTypeMemberInitCheck.cpp - clang-tidy---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,23 +26,21 @@ namespace cppcoreguidelines {
 
 namespace {
 
+AST_MATCHER(CXXRecordDecl, hasDefaultConstructor) {
+  return Node.hasDefaultConstructor();
+}
+
 // Iterate over all the fields in a record type, both direct and indirect (e.g.
-// if the record contains an anonmyous struct). If OneFieldPerUnion is true and
-// the record type (or indirect field) is a union, forEachField will stop after
-// the first field.
+// if the record contains an anonmyous struct).
 template <typename T, typename Func>
-void forEachField(const RecordDecl *Record, const T &Fields,
-                  bool OneFieldPerUnion, Func &&Fn) {
+void forEachField(const RecordDecl &Record, const T &Fields, Func &&Fn) {
   for (const FieldDecl *F : Fields) {
     if (F->isAnonymousStructOrUnion()) {
       if (const CXXRecordDecl *R = F->getType()->getAsCXXRecordDecl())
-        forEachField(R, R->fields(), OneFieldPerUnion, Fn);
+        forEachField(*R, R->fields(), Fn);
     } else {
       Fn(F);
     }
-
-    if (OneFieldPerUnion && Record->isUnion())
-      break;
   }
 }
 
@@ -121,13 +118,15 @@ struct IntializerInsertion {
     SourceLocation Location;
     switch (Placement) {
     case InitializerPlacement::New:
-      Location = utils::lexer::getPreviousNonCommentToken(
-                     Context, Constructor.getBody()->getLocStart())
+      Location = utils::lexer::getPreviousToken(
+                     Constructor.getBody()->getBeginLoc(),
+                     Context.getSourceManager(), Context.getLangOpts())
                      .getLocation();
       break;
     case InitializerPlacement::Before:
-      Location = utils::lexer::getPreviousNonCommentToken(
-                     Context, Where->getSourceRange().getBegin())
+      Location = utils::lexer::getPreviousToken(
+                     Where->getSourceRange().getBegin(),
+                     Context.getSourceManager(), Context.getLangOpts())
                      .getLocation();
       break;
     case InitializerPlacement::After:
@@ -192,7 +191,7 @@ computeInsertions(const CXXConstructorDecl::init_const_range &Inits,
 
       // Add all fields between current field up until the next intializer.
       for (; Decl != std::end(OrderedDecls) && *Decl != InitDecl; ++Decl) {
-        if (const T *D = dyn_cast<T>(*Decl)) {
+        if (const auto *D = dyn_cast<T>(*Decl)) {
           if (DeclsToInit.count(D) > 0)
             Insertions.back().Initializers.emplace_back(getName(D));
         }
@@ -204,7 +203,7 @@ computeInsertions(const CXXConstructorDecl::init_const_range &Inits,
 
   // Add remaining decls that require initialization.
   for (; Decl != std::end(OrderedDecls); ++Decl) {
-    if (const T *D = dyn_cast<T>(*Decl)) {
+    if (const auto *D = dyn_cast<T>(*Decl)) {
       if (DeclsToInit.count(D) > 0)
         Insertions.back().Initializers.emplace_back(getName(D));
     }
@@ -214,16 +213,16 @@ computeInsertions(const CXXConstructorDecl::init_const_range &Inits,
 
 // Gets the list of bases and members that could possibly be initialized, in
 // order as they appear in the class declaration.
-void getInitializationsInOrder(const CXXRecordDecl *ClassDecl,
+void getInitializationsInOrder(const CXXRecordDecl &ClassDecl,
                                SmallVectorImpl<const NamedDecl *> &Decls) {
   Decls.clear();
-  for (const auto &Base : ClassDecl->bases()) {
+  for (const auto &Base : ClassDecl.bases()) {
     // Decl may be null if the base class is a template parameter.
     if (const NamedDecl *Decl = getCanonicalRecordDecl(Base.getType())) {
       Decls.emplace_back(Decl);
     }
   }
-  forEachField(ClassDecl, ClassDecl->fields(), false,
+  forEachField(ClassDecl, ClassDecl.fields(),
                [&](const FieldDecl *F) { Decls.push_back(F); });
 }
 
@@ -232,11 +231,11 @@ void fixInitializerList(const ASTContext &Context, DiagnosticBuilder &Diag,
                         const CXXConstructorDecl *Ctor,
                         const SmallPtrSetImpl<const T *> &DeclsToInit) {
   // Do not propose fixes in macros since we cannot place them correctly.
-  if (Ctor->getLocStart().isMacroID())
+  if (Ctor->getBeginLoc().isMacroID())
     return;
 
   SmallVector<const NamedDecl *, 16> OrderedDecls;
-  getInitializationsInOrder(Ctor->getParent(), OrderedDecls);
+  getInitializationsInOrder(*Ctor->getParent(), OrderedDecls);
 
   for (const auto &Insertion :
        computeInsertions(Ctor->inits(), OrderedDecls, DeclsToInit)) {
@@ -269,6 +268,19 @@ void ProTypeMemberInitCheck::registerMatchers(MatchFinder *Finder) {
                                IsNonTrivialDefaultConstructor))
           .bind("ctor"),
       this);
+
+  // Match classes with a default constructor that is defaulted or is not in the
+  // AST.
+  Finder->addMatcher(
+      cxxRecordDecl(
+          isDefinition(), unless(isInstantiated()), hasDefaultConstructor(),
+          anyOf(has(cxxConstructorDecl(isDefaultConstructor(), isDefaulted(),
+                                       unless(isImplicit()))),
+                unless(has(cxxConstructorDecl()))),
+          unless(isTriviallyDefaultConstructible()))
+          .bind("record"),
+      this);
+
   auto HasDefaultConstructor = hasInitializer(
       cxxConstructExpr(unless(requiresZeroInitialization()),
                        hasDeclaration(cxxConstructorDecl(
@@ -287,8 +299,14 @@ void ProTypeMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
     // Skip declarations delayed by late template parsing without a body.
     if (!Ctor->getBody())
       return;
-    checkMissingMemberInitializer(*Result.Context, Ctor);
-    checkMissingBaseClassInitializer(*Result.Context, Ctor);
+    checkMissingMemberInitializer(*Result.Context, *Ctor->getParent(), Ctor);
+    checkMissingBaseClassInitializer(*Result.Context, *Ctor->getParent(), Ctor);
+  } else if (const auto *Record =
+                 Result.Nodes.getNodeAs<CXXRecordDecl>("record")) {
+    assert(Record->hasDefaultConstructor() &&
+           "Matched record should have a default constructor");
+    checkMissingMemberInitializer(*Result.Context, *Record, nullptr);
+    checkMissingBaseClassInitializer(*Result.Context, *Record, nullptr);
   } else if (const auto *Var = Result.Nodes.getNodeAs<VarDecl>("var")) {
     checkUninitializedTrivialType(*Result.Context, Var);
   }
@@ -298,66 +316,100 @@ void ProTypeMemberInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreArrays", IgnoreArrays);
 }
 
-void ProTypeMemberInitCheck::checkMissingMemberInitializer(
-    ASTContext &Context, const CXXConstructorDecl *Ctor) {
-  const CXXRecordDecl *ClassDecl = Ctor->getParent();
-  bool IsUnion = ClassDecl->isUnion();
+// FIXME: Copied from clang/lib/Sema/SemaDeclCXX.cpp.
+static bool isIncompleteOrZeroLengthArrayType(ASTContext &Context, QualType T) {
+  if (T->isIncompleteArrayType())
+    return true;
 
-  if (IsUnion && ClassDecl->hasInClassInitializer())
+  while (const ConstantArrayType *ArrayT = Context.getAsConstantArrayType(T)) {
+    if (!ArrayT->getSize())
+      return true;
+
+    T = ArrayT->getElementType();
+  }
+
+  return false;
+}
+
+static bool isEmpty(ASTContext &Context, const QualType &Type) {
+  if (const CXXRecordDecl *ClassDecl = Type->getAsCXXRecordDecl()) {
+    return ClassDecl->isEmpty();
+  }
+  return isIncompleteOrZeroLengthArrayType(Context, Type);
+}
+
+void ProTypeMemberInitCheck::checkMissingMemberInitializer(
+    ASTContext &Context, const CXXRecordDecl &ClassDecl,
+    const CXXConstructorDecl *Ctor) {
+  bool IsUnion = ClassDecl.isUnion();
+
+  if (IsUnion && ClassDecl.hasInClassInitializer())
     return;
 
   // Gather all fields (direct and indirect) that need to be initialized.
   SmallPtrSet<const FieldDecl *, 16> FieldsToInit;
-  forEachField(ClassDecl, ClassDecl->fields(), false, [&](const FieldDecl *F) {
+  forEachField(ClassDecl, ClassDecl.fields(), [&](const FieldDecl *F) {
     if (!F->hasInClassInitializer() &&
         utils::type_traits::isTriviallyDefaultConstructible(F->getType(),
-                                                            Context))
+                                                            Context) &&
+        !isEmpty(Context, F->getType()) && !F->isUnnamedBitfield())
       FieldsToInit.insert(F);
   });
   if (FieldsToInit.empty())
     return;
 
-  for (const CXXCtorInitializer *Init : Ctor->inits()) {
-    // Remove any fields that were explicitly written in the initializer list
-    // or in-class.
-    if (Init->isAnyMemberInitializer() && Init->isWritten()) {
-      if (IsUnion)
-        return; // We can only initialize one member of a union.
-      FieldsToInit.erase(Init->getAnyMember());
+  if (Ctor) {
+    for (const CXXCtorInitializer *Init : Ctor->inits()) {
+      // Remove any fields that were explicitly written in the initializer list
+      // or in-class.
+      if (Init->isAnyMemberInitializer() && Init->isWritten()) {
+        if (IsUnion)
+          return; // We can only initialize one member of a union.
+        FieldsToInit.erase(Init->getAnyMember());
+      }
     }
+    removeFieldsInitializedInBody(*Ctor->getBody(), Context, FieldsToInit);
   }
-  removeFieldsInitializedInBody(*Ctor->getBody(), Context, FieldsToInit);
 
   // Collect all fields in order, both direct fields and indirect fields from
   // anonmyous record types.
   SmallVector<const FieldDecl *, 16> OrderedFields;
-  forEachField(ClassDecl, ClassDecl->fields(), false,
+  forEachField(ClassDecl, ClassDecl.fields(),
                [&](const FieldDecl *F) { OrderedFields.push_back(F); });
 
   // Collect all the fields we need to initialize, including indirect fields.
   SmallPtrSet<const FieldDecl *, 16> AllFieldsToInit;
-  forEachField(ClassDecl, FieldsToInit, false,
+  forEachField(ClassDecl, FieldsToInit,
                [&](const FieldDecl *F) { AllFieldsToInit.insert(F); });
   if (AllFieldsToInit.empty())
     return;
 
   DiagnosticBuilder Diag =
-      diag(Ctor->getLocStart(),
+      diag(Ctor ? Ctor->getBeginLoc() : ClassDecl.getLocation(),
            IsUnion
                ? "union constructor should initialize one of these fields: %0"
                : "constructor does not initialize these fields: %0")
       << toCommaSeparatedString(OrderedFields, AllFieldsToInit);
 
-  // Do not propose fixes in macros since we cannot place them correctly.
-  if (Ctor->getLocStart().isMacroID())
+  // Do not propose fixes for constructors in macros since we cannot place them
+  // correctly.
+  if (Ctor && Ctor->getBeginLoc().isMacroID())
     return;
 
   // Collect all fields but only suggest a fix for the first member of unions,
   // as initializing more than one union member is an error.
   SmallPtrSet<const FieldDecl *, 16> FieldsToFix;
-  forEachField(ClassDecl, FieldsToInit, true, [&](const FieldDecl *F) {
+  SmallPtrSet<const RecordDecl *, 4> UnionsSeen;
+  forEachField(ClassDecl, OrderedFields, [&](const FieldDecl *F) {
+    if (!FieldsToInit.count(F))
+      return;
     // Don't suggest fixes for enums because we don't know a good default.
-    if (!F->getType()->isEnumeralType())
+    // Don't suggest fixes for bitfields because in-class initialization is not
+    // possible until C++2a.
+    if (F->getType()->isEnumeralType() ||
+        (!getLangOpts().CPlusPlus2a && F->isBitField()))
+      return;
+    if (!F->getParent()->isUnion() || UnionsSeen.insert(F->getParent()).second)
       FieldsToFix.insert(F);
   });
   if (FieldsToFix.empty())
@@ -370,20 +422,20 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
           getLocationForEndOfToken(Context, Field->getSourceRange().getEnd()),
           "{}");
     }
-  } else {
+  } else if (Ctor) {
     // Otherwise, rewrite the constructor's initializer list.
     fixInitializerList(Context, Diag, Ctor, FieldsToFix);
   }
 }
 
 void ProTypeMemberInitCheck::checkMissingBaseClassInitializer(
-    const ASTContext &Context, const CXXConstructorDecl *Ctor) {
-  const CXXRecordDecl *ClassDecl = Ctor->getParent();
+    const ASTContext &Context, const CXXRecordDecl &ClassDecl,
+    const CXXConstructorDecl *Ctor) {
 
   // Gather any base classes that need to be initialized.
   SmallVector<const RecordDecl *, 4> AllBases;
   SmallPtrSet<const RecordDecl *, 4> BasesToInit;
-  for (const CXXBaseSpecifier &Base : ClassDecl->bases()) {
+  for (const CXXBaseSpecifier &Base : ClassDecl.bases()) {
     if (const auto *BaseClassDecl = getCanonicalRecordDecl(Base.getType())) {
       AllBases.emplace_back(BaseClassDecl);
       if (!BaseClassDecl->field_empty() &&
@@ -397,26 +449,32 @@ void ProTypeMemberInitCheck::checkMissingBaseClassInitializer(
     return;
 
   // Remove any bases that were explicitly written in the initializer list.
-  for (const CXXCtorInitializer *Init : Ctor->inits()) {
-    if (Init->isBaseInitializer() && Init->isWritten())
-      BasesToInit.erase(Init->getBaseClass()->getAsCXXRecordDecl());
+  if (Ctor) {
+    if (Ctor->isImplicit())
+      return;
+
+    for (const CXXCtorInitializer *Init : Ctor->inits()) {
+      if (Init->isBaseInitializer() && Init->isWritten())
+        BasesToInit.erase(Init->getBaseClass()->getAsCXXRecordDecl());
+    }
   }
 
   if (BasesToInit.empty())
     return;
 
   DiagnosticBuilder Diag =
-      diag(Ctor->getLocStart(),
+      diag(Ctor ? Ctor->getBeginLoc() : ClassDecl.getLocation(),
            "constructor does not initialize these bases: %0")
       << toCommaSeparatedString(AllBases, BasesToInit);
 
-  fixInitializerList(Context, Diag, Ctor, BasesToInit);
+  if (Ctor)
+    fixInitializerList(Context, Diag, Ctor, BasesToInit);
 }
 
 void ProTypeMemberInitCheck::checkUninitializedTrivialType(
     const ASTContext &Context, const VarDecl *Var) {
   DiagnosticBuilder Diag =
-      diag(Var->getLocStart(), "uninitialized record type: %0") << Var;
+      diag(Var->getBeginLoc(), "uninitialized record type: %0") << Var;
 
   Diag << FixItHint::CreateInsertion(
       getLocationForEndOfToken(Context, Var->getSourceRange().getEnd()),

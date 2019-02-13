@@ -1,3 +1,6 @@
+// Remove UNSUPPORTED for powerpc64le when the problem introduced by
+// r288563 is resolved.
+// UNSUPPORTED: powerpc64le
 // RUN: %check_clang_tidy %s readability-identifier-naming %t -- \
 // RUN:   -config='{CheckOptions: [ \
 // RUN:     {key: readability-identifier-naming.AbstractClassCase, value: CamelCase}, \
@@ -59,12 +62,24 @@
 // RUN:     {key: readability-identifier-naming.UsingCase, value: lower_case}, \
 // RUN:     {key: readability-identifier-naming.ValueTemplateParameterCase, value: camelBack}, \
 // RUN:     {key: readability-identifier-naming.VariableCase, value: lower_case}, \
-// RUN:     {key: readability-identifier-naming.VirtualMethodCase, value: UPPER_CASE}, \
+// RUN:     {key: readability-identifier-naming.VirtualMethodCase, value: Camel_Snake_Case}, \
 // RUN:     {key: readability-identifier-naming.VirtualMethodPrefix, value: 'v_'}, \
 // RUN:     {key: readability-identifier-naming.MacroDefinitionCase, value: UPPER_CASE}, \
-// RUN:     {key: readability-identifier-naming.TypeAliasCase, value: lower_case}, \
+// RUN:     {key: readability-identifier-naming.TypeAliasCase, value: camel_Snake_Back}, \
 // RUN:     {key: readability-identifier-naming.TypeAliasSuffix, value: '_t'}, \
-// RUN:     {key: readability-identifier-naming.IgnoreFailedSplit, value: 0} \
+// RUN:     {key: readability-identifier-naming.IgnoreFailedSplit, value: 0}, \
+// RUN:     {key: readability-identifier-naming.GlobalPointerCase, value: CamelCase}, \
+// RUN:     {key: readability-identifier-naming.GlobalPointerSuffix, value: '_Ptr'}, \
+// RUN:     {key: readability-identifier-naming.GlobalConstantPointerCase, value: UPPER_CASE}, \
+// RUN:     {key: readability-identifier-naming.GlobalConstantPointerSuffix, value: '_Ptr'}, \
+// RUN:     {key: readability-identifier-naming.PointerParameterCase, value: lower_case}, \
+// RUN:     {key: readability-identifier-naming.PointerParameterPrefix, value: 'p_'}, \
+// RUN:     {key: readability-identifier-naming.ConstantPointerParameterCase, value: CamelCase}, \
+// RUN:     {key: readability-identifier-naming.ConstantPointerParameterPrefix, value: 'cp_'}, \
+// RUN:     {key: readability-identifier-naming.LocalPointerCase, value: CamelCase}, \
+// RUN:     {key: readability-identifier-naming.LocalPointerPrefix, value: 'l_'}, \
+// RUN:     {key: readability-identifier-naming.LocalConstantPointerCase, value: CamelCase}, \
+// RUN:     {key: readability-identifier-naming.LocalConstantPointerPrefix, value: 'lc_'}, \
 // RUN:   ]}' -- -std=c++11 -fno-delayed-template-parsing \
 // RUN:   -I%S/Inputs/readability-identifier-naming \
 // RUN:   -isystem %S/Inputs/readability-identifier-naming/system
@@ -95,14 +110,41 @@ SYSTEM_MACRO(var1);
 USER_MACRO(var2);
 // NO warnings or fixes expected as var2 is declared in a macro expansion
 
-int global;
-#define USE_IN_MACRO(m) auto use_##m = m
-USE_IN_MACRO(global);
-// NO warnings or fixes expected as global is used in a macro expansion
-
 #define BLA int FOO_bar
 BLA;
 // NO warnings or fixes expected as FOO_bar is from macro expansion
+
+int global0;
+#define USE_NUMBERED_GLOBAL(number) auto use_global##number = global##number
+USE_NUMBERED_GLOBAL(0);
+// NO warnings or fixes expected as global0 is pieced together in a macro
+// expansion.
+
+int global1;
+#define USE_NUMBERED_BAL(prefix, number) \
+  auto use_##prefix##bal##number = prefix##bal##number
+USE_NUMBERED_BAL(glo, 1);
+// NO warnings or fixes expected as global1 is pieced together in a macro
+// expansion.
+
+int global2;
+#define USE_RECONSTRUCTED(glo, bal) auto use_##glo##bal = glo##bal
+USE_RECONSTRUCTED(glo, bal2);
+// NO warnings or fixes expected as global2 is pieced together in a macro
+// expansion.
+
+int global;
+// CHECK-MESSAGES: :[[@LINE-1]]:5: warning: invalid case style for global variable 'global'
+// CHECK-FIXES: {{^}}int g_global;{{$}}
+#define USE_IN_MACRO(m) auto use_##m = m
+USE_IN_MACRO(global);
+
+int global3;
+// CHECK-MESSAGES: :[[@LINE-1]]:5: warning: invalid case style for global variable 'global3'
+// CHECK-FIXES: {{^}}int g_global3;{{$}}
+#define ADD_TO_SELF(m) (m) + (m)
+int g_twice_global3 = ADD_TO_SELF(global3);
+// CHECK-FIXES: {{^}}int g_twice_global3 = ADD_TO_SELF(g_global3);{{$}}
 
 enum my_enumeration {
 // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: invalid case style for enum 'my_enumeration'
@@ -125,8 +167,12 @@ constexpr int ConstExpr_variable = MyConstant;
 class my_class {
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for class 'my_class'
 // CHECK-FIXES: {{^}}class CMyClass {{{$}}
+public:
     my_class();
 // CHECK-FIXES: {{^}}    CMyClass();{{$}}
+
+    my_class(void*) : my_class() {}
+// CHECK-FIXES: {{^}}    CMyClass(void*) : CMyClass() {}{{$}}
 
     ~
       my_class();
@@ -134,12 +180,16 @@ class my_class {
 // CHECK-FIXES: {{^}}    ~{{$}}
 // CHECK-FIXES: {{^}}      CMyClass();{{$}}
 
+private:
   const int MEMBER_one_1 = ConstExpr_variable;
 // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: invalid case style for constant member 'MEMBER_one_1'
 // CHECK-FIXES: {{^}}  const int member_one_1 = const_expr_variable;{{$}}
   int member2 = 2;
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for private member 'member2'
 // CHECK-FIXES: {{^}}  int __member2 = 2;{{$}}
+  int _memberWithExtraUnderscores_ = 42;
+// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for private member '_memberWithExtraUnderscores_'
+// CHECK-FIXES: {{^}}  int __memberWithExtraUnderscores = 42;{{$}}
 
 private:
     int private_member = 3;
@@ -163,6 +213,11 @@ public:
 // CHECK-MESSAGES: :[[@LINE-1]]:16: warning: invalid case style for class member 'ClassMember_2'
 // CHECK-FIXES: {{^}}    static int ClassMember2;{{$}}
 };
+class my_class;
+// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for class 'my_class'
+// CHECK-FIXES: {{^}}class CMyClass;{{$}}
+
+class my_forward_declared_class; // No warning should be triggered.
 
 const int my_class::classConstant = 4;
 // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: invalid case style for class constant 'classConstant'
@@ -178,6 +233,34 @@ class my_derived_class : public virtual my_class {};
 
 class CMyWellNamedClass {};
 // No warning expected as this class is well named.
+
+template <typename t_t>
+class CMyWellNamedClass2 : public my_class {
+  // CHECK-FIXES: {{^}}class CMyWellNamedClass2 : public CMyClass {{{$}}
+  t_t my_Bad_Member;
+  // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for private member 'my_Bad_Member'
+  // CHECK-FIXES: {{^}}  t_t __my_Bad_Member;{{$}}
+  int my_Other_Bad_Member = 42;
+  // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for private member 'my_Other_Bad_Member'
+  // CHECK-FIXES: {{^}}  int __my_Other_Bad_Member = 42;{{$}}
+public:
+  CMyWellNamedClass2() = default;
+  CMyWellNamedClass2(CMyWellNamedClass2 const&) = default;
+  CMyWellNamedClass2(CMyWellNamedClass2 &&) = default;
+  CMyWellNamedClass2(t_t a_v, void *p_p) : my_class(p_p), my_Bad_Member(a_v) {}
+  // CHECK-FIXES: {{^}}  CMyWellNamedClass2(t_t a_v, void *p_p) : CMyClass(p_p), __my_Bad_Member(a_v) {}{{$}}
+
+  CMyWellNamedClass2(t_t a_v) : my_class(), my_Bad_Member(a_v), my_Other_Bad_Member(11) {}
+  // CHECK-FIXES: {{^}}  CMyWellNamedClass2(t_t a_v) : CMyClass(), __my_Bad_Member(a_v), __my_Other_Bad_Member(11) {}{{$}}
+};
+void InstantiateClassMethods() {
+  // Ensure we trigger the instantiation of each constructor
+  CMyWellNamedClass2<int> x;
+  CMyWellNamedClass2<int> x2 = x;
+  CMyWellNamedClass2<int> x3 = static_cast<CMyWellNamedClass2<int>&&>(x2);
+  CMyWellNamedClass2<int> x4(42);
+  CMyWellNamedClass2<int> x5(42, nullptr);
+}
 
 template<typename T>
 // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: invalid case style for type template parameter 'T'
@@ -261,7 +344,7 @@ class abstract_class {
 // CHECK-FIXES: {{^}}    virtual ~AAbstractClass() = 0;{{$}}
     virtual void VIRTUAL_METHOD();
 // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: invalid case style for virtual method 'VIRTUAL_METHOD'
-// CHECK-FIXES: {{^}}    virtual void v_VIRTUAL_METHOD();{{$}}
+// CHECK-FIXES: {{^}}    virtual void v_Virtual_Method();{{$}}
     void non_Virtual_METHOD() {}
 // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: invalid case style for private method 'non_Virtual_METHOD'
 // CHECK-FIXES: {{^}}    void __non_Virtual_METHOD() {}{{$}}
@@ -316,12 +399,12 @@ struct_type GlobalTypedefTestFunction(struct_type a_argument1) {
 
 using my_struct_type = THIS___Structure;
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for type alias 'my_struct_type'
-// CHECK-FIXES: {{^}}using my_struct_type_t = this_structure;{{$}}
+// CHECK-FIXES: {{^}}using my_Struct_Type_t = this_structure;{{$}}
 
 template<typename t_t>
 using SomeOtherTemplate = my_other_templated_class  <:: FOO_NS  ::my_class>;
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for type alias 'SomeOtherTemplate'
-// CHECK-FIXES: {{^}}using some_other_template_t = CMyOtherTemplatedClass  <:: foo_ns  ::CMyClass>;{{$}}
+// CHECK-FIXES: {{^}}using some_Other_Template_t = CMyOtherTemplatedClass  <:: foo_ns  ::CMyClass>;{{$}}
 
 static void static_Function() {
 // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: invalid case style for function 'static_Function'
@@ -334,6 +417,38 @@ static void static_Function() {
 
   using ::FOO_NS::InlineNamespace::CE_function;
 // CHECK-FIXES: {{^}}  using ::foo_ns::inline_namespace::ce_function;{{$}}
+
+  unsigned MY_LOCAL_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:12: warning: invalid case style for local variable 'MY_LOCAL_array'
+// CHECK-FIXES: {{^}}  unsigned my_local_array[] = {1,2,3};{{$}}
+
+  unsigned const MyConstLocal_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:18: warning: invalid case style for local constant 'MyConstLocal_array'
+// CHECK-FIXES: {{^}}  unsigned const kMyConstLocalArray[] = {1,2,3};{{$}}
+
+  static unsigned MY_STATIC_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:19: warning: invalid case style for static variable 'MY_STATIC_array'
+// CHECK-FIXES: {{^}}  static unsigned s_myStaticArray[] = {1,2,3};{{$}}
+
+  static unsigned const MyConstStatic_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:25: warning: invalid case style for static constant 'MyConstStatic_array'
+// CHECK-FIXES: {{^}}  static unsigned const MY_CONST_STATIC_ARRAY[] = {1,2,3};{{$}}
+
+  char MY_LOCAL_string[] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:8: warning: invalid case style for local variable 'MY_LOCAL_string'
+// CHECK-FIXES: {{^}}  char my_local_string[] = "123";{{$}}
+
+  char const MyConstLocal_string[] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:14: warning: invalid case style for local constant 'MyConstLocal_string'
+// CHECK-FIXES: {{^}}  char const kMyConstLocalString[] = "123";{{$}}
+
+  static char MY_STATIC_string[] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:15: warning: invalid case style for static variable 'MY_STATIC_string'
+// CHECK-FIXES: {{^}}  static char s_myStaticString[] = "123";{{$}}
+
+  static char const MyConstStatic_string[] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: invalid case style for static constant 'MyConstStatic_string'
+// CHECK-FIXES: {{^}}  static char const MY_CONST_STATIC_STRING[] = "123";{{$}}
 }
 
 #define MY_TEST_Macro(X) X()
@@ -347,6 +462,42 @@ void MY_TEST_Macro(function) {}
 
 template <typename t_t> struct a {
   typename t_t::template b<> c;
+
+  char const MY_ConstMember_string[4] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:14: warning: invalid case style for constant member 'MY_ConstMember_string'
+// CHECK-FIXES: {{^}}  char const my_const_member_string[4] = "123";{{$}}
+
+  static char const MyConstClass_string[];
+// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: invalid case style for class constant 'MyConstClass_string'
+// CHECK-FIXES: {{^}}  static char const kMyConstClassString[];{{$}}
 };
 
+template<typename t_t>
+char const a<t_t>::MyConstClass_string[] = "123";
+// CHECK-MESSAGES: :[[@LINE-1]]:20: warning: invalid case style for class constant 'MyConstClass_string'
+// CHECK-FIXES: {{^}}char const a<t_t>::kMyConstClassString[] = "123";{{$}}
+
 template <template <typename> class A> struct b { A<int> c; };
+
+unsigned MY_GLOBAL_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:10: warning: invalid case style for global variable 'MY_GLOBAL_array'
+// CHECK-FIXES: {{^}}unsigned g_my_global_array[] = {1,2,3};{{$}}
+
+unsigned const MyConstGlobal_array[] = {1,2,3};
+// CHECK-MESSAGES: :[[@LINE-1]]:16: warning: invalid case style for global constant 'MyConstGlobal_array'
+// CHECK-FIXES: {{^}}unsigned const MY_CONST_GLOBAL_ARRAY[] = {1,2,3};{{$}}
+
+int * MyGlobal_Ptr;// -> ok
+int * const MyConstantGlobalPointer = nullptr;
+// CHECK-MESSAGES: :[[@LINE-1]]:13: warning: invalid case style for global constant pointer 'MyConstantGlobalPointer'
+// CHECK-FIXES: {{^}}int * const MY_CONSTANT_GLOBAL_POINTER_Ptr = nullptr;{{$}}
+
+void MyPoiterFunction(int * p_normal_pointer, int * const constant_ptr){
+// CHECK-MESSAGES: :[[@LINE-1]]:59: warning: invalid case style for constant pointer parameter 'constant_ptr'
+// CHECK-FIXES: {{^}}void MyPoiterFunction(int * p_normal_pointer, int * const cp_ConstantPtr){{{$}}
+    int * l_PointerA;
+    int * const pointer_b = nullptr;
+// CHECK-MESSAGES: :[[@LINE-1]]:17: warning: invalid case style for local constant pointer 'pointer_b'
+// CHECK-FIXES: {{^}}    int * const lc_PointerB = nullptr;{{$}}
+}
+

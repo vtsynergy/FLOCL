@@ -1,9 +1,8 @@
 //===--- NewDeleteOverloadsCheck.h - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,11 +19,12 @@ namespace misc {
 
 class NewDeleteOverloadsCheck : public ClangTidyCheck {
   std::map<const clang::CXXRecordDecl *,
-           llvm::SmallVector<const clang::FunctionDecl *, 4>> Overloads;
+           llvm::SmallVector<const clang::FunctionDecl *, 4>>
+      Overloads;
 
 public:
   NewDeleteOverloadsCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context) {}
+      : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void onEndOfTranslationUnit() override;

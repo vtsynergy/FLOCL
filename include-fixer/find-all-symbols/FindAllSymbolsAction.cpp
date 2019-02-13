@@ -1,13 +1,16 @@
 //===-- FindAllSymbolsAction.cpp - find all symbols action --------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "FindAllSymbolsAction.h"
+#include "FindAllMacros.h"
+#include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
+#include "llvm/ADT/STLExtras.h"
 
 namespace clang {
 namespace find_all_symbols {
@@ -20,8 +23,8 @@ FindAllSymbolsAction::FindAllSymbolsAction(
   Matcher.registerMatchers(&MatchFinder);
 }
 
-std::unique_ptr<clang::ASTConsumer>
-FindAllSymbolsAction::CreateASTConsumer(clang::CompilerInstance &Compiler,
+std::unique_ptr<ASTConsumer>
+FindAllSymbolsAction::CreateASTConsumer(CompilerInstance &Compiler,
                                         StringRef InFile) {
   Compiler.getPreprocessor().addCommentHandler(&Handler);
   Compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<FindAllMacros>(

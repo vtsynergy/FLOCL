@@ -1,9 +1,8 @@
 //===- RedundantVoidArgCheck.cpp - clang-tidy -----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -45,8 +44,11 @@ const char LambdaId[] = "lambda";
 } // namespace
 
 void RedundantVoidArgCheck::registerMatchers(MatchFinder *Finder) {
+  if (!getLangOpts().CPlusPlus)
+    return;
+
   Finder->addMatcher(functionDecl(parameterCountIs(0), unless(isImplicit()),
-                                  unless(isExternC()))
+                                  unless(isInstantiated()), unless(isExternC()))
                          .bind(FunctionId),
                      this);
   Finder->addMatcher(typedefNameDecl().bind(TypedefId), this);
@@ -72,10 +74,6 @@ void RedundantVoidArgCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void RedundantVoidArgCheck::check(const MatchFinder::MatchResult &Result) {
-  if (!Result.Context->getLangOpts().CPlusPlus) {
-    return;
-  }
-
   const BoundNodes &Nodes = Result.Nodes;
   if (const auto *Function = Nodes.getNodeAs<FunctionDecl>(FunctionId)) {
     processFunctionDecl(Result, Function);
@@ -104,9 +102,9 @@ void RedundantVoidArgCheck::processFunctionDecl(
     const MatchFinder::MatchResult &Result, const FunctionDecl *Function) {
   if (Function->isThisDeclarationADefinition()) {
     const Stmt *Body = Function->getBody();
-    SourceLocation Start = Function->getLocStart();
+    SourceLocation Start = Function->getBeginLoc();
     SourceLocation End =
-        Body ? Body->getLocStart().getLocWithOffset(-1) : Function->getLocEnd();
+        Body ? Body->getBeginLoc().getLocWithOffset(-1) : Function->getEndLoc();
     removeVoidArgumentTokens(Result, SourceRange(Start, End),
                              "function definition");
   } else {
@@ -118,16 +116,15 @@ void RedundantVoidArgCheck::processFunctionDecl(
 void RedundantVoidArgCheck::removeVoidArgumentTokens(
     const ast_matchers::MatchFinder::MatchResult &Result, SourceRange Range,
     StringRef GrammarLocation) {
-  CharSourceRange CharRange = Lexer::makeFileCharRange(
-      CharSourceRange::getTokenRange(Range), *Result.SourceManager,
-      Result.Context->getLangOpts());
+  CharSourceRange CharRange =
+      Lexer::makeFileCharRange(CharSourceRange::getTokenRange(Range),
+                               *Result.SourceManager, getLangOpts());
 
-  std::string DeclText = Lexer::getSourceText(CharRange, *Result.SourceManager,
-                                              Result.Context->getLangOpts())
-                             .str();
-  Lexer PrototypeLexer(CharRange.getBegin(), Result.Context->getLangOpts(),
-                       DeclText.data(), DeclText.data(),
-                       DeclText.data() + DeclText.size());
+  std::string DeclText =
+      Lexer::getSourceText(CharRange, *Result.SourceManager, getLangOpts())
+          .str();
+  Lexer PrototypeLexer(CharRange.getBegin(), getLangOpts(), DeclText.data(),
+                       DeclText.data(), DeclText.data() + DeclText.size());
   enum TokenState {
     NothingYet,
     SawLeftParen,
@@ -151,6 +148,8 @@ void RedundantVoidArgCheck::removeVoidArgumentTokens(
           ProtoToken.getRawIdentifier() == "void") {
         State = SawVoid;
         VoidToken = ProtoToken;
+      } else if (ProtoToken.is(tok::TokenKind::l_paren)) {
+        State = SawLeftParen;
       } else {
         State = NothingYet;
       }
@@ -200,10 +199,10 @@ void RedundantVoidArgCheck::processFieldDecl(
 void RedundantVoidArgCheck::processVarDecl(
     const MatchFinder::MatchResult &Result, const VarDecl *Var) {
   if (protoTypeHasNoParms(Var->getType())) {
-    SourceLocation Begin = Var->getLocStart();
+    SourceLocation Begin = Var->getBeginLoc();
     if (Var->hasInit()) {
       SourceLocation InitStart =
-          Result.SourceManager->getExpansionLoc(Var->getInit()->getLocStart())
+          Result.SourceManager->getExpansionLoc(Var->getInit()->getBeginLoc())
               .getLocWithOffset(-1);
       removeVoidArgumentTokens(Result, SourceRange(Begin, InitStart),
                                "variable declaration with initializer");
@@ -237,10 +236,11 @@ void RedundantVoidArgCheck::processLambdaExpr(
     const MatchFinder::MatchResult &Result, const LambdaExpr *Lambda) {
   if (Lambda->getLambdaClass()->getLambdaCallOperator()->getNumParams() == 0 &&
       Lambda->hasExplicitParameters()) {
-    SourceLocation Begin =
-        Lambda->getIntroducerRange().getEnd().getLocWithOffset(1);
-    SourceLocation End = Lambda->getBody()->getLocStart().getLocWithOffset(-1);
-    removeVoidArgumentTokens(Result, SourceRange(Begin, End),
+    SourceManager *SM = Result.SourceManager;
+    TypeLoc TL = Lambda->getLambdaClass()->getLambdaTypeInfo()->getTypeLoc();
+    removeVoidArgumentTokens(Result,
+                             {SM->getSpellingLoc(TL.getBeginLoc()),
+                              SM->getSpellingLoc(TL.getEndLoc())},
                              "lambda expression");
   }
 }

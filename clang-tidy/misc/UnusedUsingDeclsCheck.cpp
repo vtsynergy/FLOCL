@@ -1,9 +1,8 @@
 //===--- UnusedUsingDeclsCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,9 +36,20 @@ void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(declRefExpr().bind("used"), this);
   Finder->addMatcher(callExpr(callee(unresolvedLookupExpr().bind("used"))),
                      this);
+  Finder->addMatcher(
+      callExpr(hasDeclaration(functionDecl(hasAnyTemplateArgument(
+          anyOf(refersToTemplate(templateName().bind("used")),
+                refersToDeclaration(functionDecl().bind("used"))))))),
+      this);
+  Finder->addMatcher(loc(templateSpecializationType(hasAnyTemplateArgument(
+                         templateArgument().bind("used")))),
+                     this);
 }
 
 void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
+  if (Result.Context->getDiagnostics().hasUncompilableErrorOccurred())
+    return;
+
   if (const auto *Using = Result.Nodes.getNodeAs<UsingDecl>("using")) {
     // Ignores using-declarations defined in macros.
     if (Using->getLocation().isMacroID())
@@ -57,10 +67,9 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
 
     UsingDeclContext Context(Using);
     Context.UsingDeclRange = CharSourceRange::getCharRange(
-        Using->getLocStart(),
+        Using->getBeginLoc(),
         Lexer::findLocationAfterToken(
-            Using->getLocEnd(), tok::semi, *Result.SourceManager,
-            Result.Context->getLangOpts(),
+            Using->getEndLoc(), tok::semi, *Result.SourceManager, getLangOpts(),
             /*SkipTrailingWhitespaceAndNewLine=*/true));
     for (const auto *UsingShadow : Using->shadows()) {
       const auto *TargetDecl = UsingShadow->getTargetDecl()->getCanonicalDecl();
@@ -71,17 +80,36 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
       Contexts.push_back(Context);
     return;
   }
-
   // Mark using declarations as used by setting FoundDecls' value to zero. As
   // the AST is walked in order, usages are only marked after a the
   // corresponding using declaration has been found.
   // FIXME: This currently doesn't look at whether the type reference is
   // actually found with the help of the using declaration.
   if (const auto *Used = Result.Nodes.getNodeAs<NamedDecl>("used")) {
-    if (const auto *Specialization =
-            dyn_cast<ClassTemplateSpecializationDecl>(Used))
+    if (const auto *FD = dyn_cast<FunctionDecl>(Used)) {
+      removeFromFoundDecls(FD->getPrimaryTemplate());
+    } else if (const auto *Specialization =
+                   dyn_cast<ClassTemplateSpecializationDecl>(Used)) {
       Used = Specialization->getSpecializedTemplate();
+    }
     removeFromFoundDecls(Used);
+    return;
+  }
+
+  if (const auto *Used = Result.Nodes.getNodeAs<TemplateArgument>("used")) {
+    // FIXME: Support non-type template parameters.
+    if (Used->getKind() == TemplateArgument::Template) {
+      if (const auto *TD = Used->getAsTemplate().getAsTemplateDecl())
+        removeFromFoundDecls(TD);
+    } else if (Used->getKind() == TemplateArgument::Type) {
+      if (auto *RD = Used->getAsType()->getAsCXXRecordDecl())
+        removeFromFoundDecls(RD);
+    }
+    return;
+  }
+
+  if (const auto *Used = Result.Nodes.getNodeAs<TemplateName>("used")) {
+    removeFromFoundDecls(Used->getAsTemplateDecl());
     return;
   }
 
@@ -101,7 +129,7 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
   }
   // Check the uninstantiated template function usage.
   if (const auto *ULE = Result.Nodes.getNodeAs<UnresolvedLookupExpr>("used")) {
-    for (const NamedDecl* ND : ULE->decls()) {
+    for (const NamedDecl *ND : ULE->decls()) {
       if (const auto *USD = dyn_cast<UsingShadowDecl>(ND))
         removeFromFoundDecls(USD->getTargetDecl()->getCanonicalDecl());
     }
@@ -109,6 +137,8 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
 }
 
 void UnusedUsingDeclsCheck::removeFromFoundDecls(const Decl *D) {
+  if (!D)
+    return;
   // FIXME: Currently, we don't handle the using-decls being used in different
   // scopes (such as different namespaces, different functions). Instead of
   // giving an incorrect message, we mark all of them as used.

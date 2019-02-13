@@ -1,4 +1,5 @@
-// RUN: clang-tidy %s -checks='-*,clang-analyzer-unix.Malloc' -config='{CheckOptions: [{ key: "clang-analyzer-unix.Malloc:Optimistic", value: true}]}' -- | FileCheck %s
+// REQUIRES: static-analyzer
+// RUN: clang-tidy %s -checks='-*,clang-analyzer-unix.Malloc' -config='{CheckOptions: [{ key: "clang-analyzer-unix.DynamicMemoryModeling:Optimistic", value: true}]}' -- | FileCheck %s
 typedef __typeof(sizeof(int)) size_t;
 void *malloc(size_t);
 void free(void *);
@@ -7,7 +8,7 @@ void __attribute((ownership_takes(malloc, 1))) my_free(void *);
 
 void f1() {
   void *p = malloc(12);
-  return; 
+  return;
   // CHECK: warning: Potential leak of memory pointed to by 'p' [clang-analyzer-unix.Malloc]
 }
 

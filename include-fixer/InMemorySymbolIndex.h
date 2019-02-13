@@ -1,9 +1,8 @@
 //===-- InMemorySymbolIndex.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -21,13 +20,14 @@ namespace include_fixer {
 /// Xref database with fixed content.
 class InMemorySymbolIndex : public SymbolIndex {
 public:
-  InMemorySymbolIndex(const std::vector<find_all_symbols::SymbolInfo> &Symbols);
+  InMemorySymbolIndex(
+      const std::vector<find_all_symbols::SymbolAndSignals> &Symbols);
 
-  std::vector<clang::find_all_symbols::SymbolInfo>
+  std::vector<find_all_symbols::SymbolAndSignals>
   search(llvm::StringRef Identifier) override;
 
 private:
-  std::map<std::string, std::vector<clang::find_all_symbols::SymbolInfo>>
+  std::map<std::string, std::vector<find_all_symbols::SymbolAndSignals>>
       LookupTable;
 };
 

@@ -1,9 +1,8 @@
 //===--- HeaderFileExtensionsUtils.cpp - clang-tidy--------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,28 +18,24 @@ bool isExpansionLocInHeaderFile(
     SourceLocation Loc, const SourceManager &SM,
     const HeaderFileExtensionsSet &HeaderFileExtensions) {
   SourceLocation ExpansionLoc = SM.getExpansionLoc(Loc);
-  StringRef FileExtension =
-      llvm::sys::path::extension(SM.getFilename(ExpansionLoc));
-  return HeaderFileExtensions.count(FileExtension.substr(1)) > 0;
+  return isHeaderFileExtension(SM.getFilename(ExpansionLoc),
+                               HeaderFileExtensions);
 }
 
 bool isPresumedLocInHeaderFile(
     SourceLocation Loc, SourceManager &SM,
     const HeaderFileExtensionsSet &HeaderFileExtensions) {
   PresumedLoc PresumedLocation = SM.getPresumedLoc(Loc);
-  StringRef FileExtension =
-      llvm::sys::path::extension(PresumedLocation.getFilename());
-  return HeaderFileExtensions.count(FileExtension.substr(1)) > 0;
+  return isHeaderFileExtension(PresumedLocation.getFilename(),
+                               HeaderFileExtensions);
 }
 
 bool isSpellingLocInHeaderFile(
     SourceLocation Loc, SourceManager &SM,
     const HeaderFileExtensionsSet &HeaderFileExtensions) {
   SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
-  StringRef FileExtension =
-      llvm::sys::path::extension(SM.getFilename(SpellingLoc));
-
-  return HeaderFileExtensions.count(FileExtension.substr(1)) > 0;
+  return isHeaderFileExtension(SM.getFilename(SpellingLoc),
+                               HeaderFileExtensions);
 }
 
 bool parseHeaderFileExtensions(StringRef AllHeaderFileExtensions,
@@ -59,6 +54,15 @@ bool parseHeaderFileExtensions(StringRef AllHeaderFileExtensions,
     HeaderFileExtensions.insert(Extension);
   }
   return true;
+}
+
+bool isHeaderFileExtension(
+    StringRef FileName, const HeaderFileExtensionsSet &HeaderFileExtensions) {
+  StringRef extension = llvm::sys::path::extension(FileName);
+  if (extension.empty())
+    return false;
+  // Skip "." prefix.
+  return HeaderFileExtensions.count(extension.substr(1)) > 0;
 }
 
 } // namespace utils

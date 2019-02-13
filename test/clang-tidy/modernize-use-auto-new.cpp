@@ -1,4 +1,6 @@
-// RUN: %check_clang_tidy %s modernize-use-auto %t
+// RUN: %check_clang_tidy %s modernize-use-auto %t -- \
+// RUN:   -config="{CheckOptions: [{key: modernize-use-auto.MinTypeNameLength, value: '0'}]}" \
+// RUN:   -- -std=c++11 -frtti
 
 class MyType {};
 
@@ -14,6 +16,10 @@ void auto_new() {
   static MyType *a_static = new MyType();
   // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: use auto when initializing with new
   // CHECK-FIXES: static auto *a_static = new MyType();
+
+  long long *ll = new long long();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use auto when initializing with new
+  // CHECK-FIXES: auto *ll = new long long();
 
   MyType *derived = new MyDerivedType();
 

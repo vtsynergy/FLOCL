@@ -1,9 +1,8 @@
 //===---- IncludeInserterTest.cpp - clang-tidy ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -45,7 +44,7 @@ public:
   }
 
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override {
-    auto Diag = diag(Result.Nodes.getStmtAs<DeclStmt>("stmt")->getLocStart(),
+    auto Diag = diag(Result.Nodes.getNodeAs<DeclStmt>("stmt")->getBeginLoc(),
                      "foo, bar");
     for (StringRef header : HeadersToInclude()) {
       auto Fixit = Inserter->CreateIncludeInsertion(
@@ -69,6 +68,17 @@ public:
 
   std::vector<StringRef> HeadersToInclude() const override {
     return {"path/to/header.h"};
+  }
+  bool IsAngledInclude() const override { return false; }
+};
+
+class EarlyInAlphabetHeaderInserterCheck : public IncludeInserterCheckBase {
+public:
+  EarlyInAlphabetHeaderInserterCheck(StringRef CheckName, ClangTidyContext *Context)
+      : IncludeInserterCheckBase(CheckName, Context) {}
+
+  std::vector<StringRef> HeadersToInclude() const override {
+    return {"a/header.h"};
   }
   bool IsAngledInclude() const override { return false; }
 };
@@ -114,6 +124,7 @@ std::string runCheckOnCode(StringRef Code, StringRef Filename) {
                                        "insert_includes_test_header.h",
                                        "\n"},
                                       // Non system headers
+                                      {"a/header.h", "\n"},
                                       {"path/to/a/header.h", "\n"},
                                       {"path/to/z/header.h", "\n"},
                                       {"path/to/header.h", "\n"},
@@ -519,6 +530,77 @@ void foo() {
 
   EXPECT_EQ(PostCode, runCheckOnCode<CXXSystemIncludeInserterCheck>(
                           PreCode, "devtools/cymbal/clang_tidy/tests/"
+                                   "insert_includes_test_header.cc"));
+}
+
+TEST(IncludeInserterTest, DontInsertDuplicateIncludeEvenIfMiscategorized) {
+  const char *PreCode = R"(
+#include "clang_tidy/tests/insert_includes_test_header.h"
+
+#include <map>
+#include <set>
+#include <vector>
+
+#include "a/header.h"
+#include "path/to/a/header.h"
+#include "path/to/header.h"
+
+void foo() {
+  int a = 0;
+})";
+
+  const char *PostCode = R"(
+#include "clang_tidy/tests/insert_includes_test_header.h"
+
+#include <map>
+#include <set>
+#include <vector>
+
+#include "a/header.h"
+#include "path/to/a/header.h"
+#include "path/to/header.h"
+
+void foo() {
+  int a = 0;
+})";
+
+  EXPECT_EQ(PostCode, runCheckOnCode<EarlyInAlphabetHeaderInserterCheck>(
+                          PreCode, "workspace_folder/clang_tidy/tests/"
+                                   "insert_includes_test_header.cc"));
+}
+
+TEST(IncludeInserterTest, HandleOrderInSubdirectory) {
+  const char *PreCode = R"(
+#include "clang_tidy/tests/insert_includes_test_header.h"
+
+#include <map>
+#include <set>
+#include <vector>
+
+#include "path/to/a/header.h"
+#include "path/to/header.h"
+
+void foo() {
+  int a = 0;
+})";
+
+  const char *PostCode = R"(
+#include "clang_tidy/tests/insert_includes_test_header.h"
+
+#include <map>
+#include <set>
+#include <vector>
+
+#include "a/header.h"
+#include "path/to/a/header.h"
+#include "path/to/header.h"
+
+void foo() {
+  int a = 0;
+})";
+
+  EXPECT_EQ(PostCode, runCheckOnCode<EarlyInAlphabetHeaderInserterCheck>(
+                          PreCode, "workspace_folder/clang_tidy/tests/"
                                    "insert_includes_test_header.cc"));
 }
 

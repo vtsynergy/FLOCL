@@ -1,9 +1,8 @@
 //===-- FindAllSymbols.h - find all symbols----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,18 +31,24 @@ class HeaderMapCollector;
 ///   through the class. #include fixer only needs the class name to find
 ///   headers.
 ///
-class FindAllSymbols : public clang::ast_matchers::MatchFinder::MatchCallback {
+class FindAllSymbols : public ast_matchers::MatchFinder::MatchCallback {
 public:
   explicit FindAllSymbols(SymbolReporter *Reporter,
                           HeaderMapCollector *Collector = nullptr)
       : Reporter(Reporter), Collector(Collector) {}
 
-  void registerMatchers(clang::ast_matchers::MatchFinder *MatchFinder);
+  void registerMatchers(ast_matchers::MatchFinder *MatchFinder);
 
-  void
-  run(const clang::ast_matchers::MatchFinder::MatchResult &result) override;
+  void run(const ast_matchers::MatchFinder::MatchResult &result) override;
+
+protected:
+  void onEndOfTranslationUnit() override;
 
 private:
+  // Current source file being processed, filled by first symbol found.
+  std::string Filename;
+  // Findings for the current source file, flushed on onEndOfTranslationUnit.
+  SymbolInfo::SignalMap FileSymbols;
   // Reporter for SymbolInfo.
   SymbolReporter *const Reporter;
   // A remapping header file collector allowing clients include a different

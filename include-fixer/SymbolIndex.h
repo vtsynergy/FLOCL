@@ -1,9 +1,8 @@
 //===-- SymbolIndex.h - Interface for symbol-header matching ----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,7 +27,7 @@ public:
   /// \returns A list of `SymbolInfo` candidates.
   // FIXME: Expose the type name so we can also insert using declarations (or
   // fix the usage)
-  virtual std::vector<clang::find_all_symbols::SymbolInfo>
+  virtual std::vector<find_all_symbols::SymbolAndSignals>
   search(llvm::StringRef Identifier) = 0;
 };
 

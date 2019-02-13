@@ -1,9 +1,8 @@
 //===--- ExplicitConstructorCheck.cpp - clang-tidy ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,9 +21,20 @@ namespace google {
 void ExplicitConstructorCheck::registerMatchers(MatchFinder *Finder) {
   // Only register the matchers for C++; the functionality currently does not
   // provide any benefit to other languages, despite being benign.
-  if (getLangOpts().CPlusPlus)
-    Finder->addMatcher(
-        cxxConstructorDecl(unless(isInstantiated())).bind("ctor"), this);
+  if (!getLangOpts().CPlusPlus)
+    return;
+  Finder->addMatcher(
+      cxxConstructorDecl(unless(anyOf(isImplicit(), // Compiler-generated.
+                                      isDeleted(), isInstantiated())))
+          .bind("ctor"),
+      this);
+  Finder->addMatcher(
+      cxxConversionDecl(unless(anyOf(isExplicit(), // Already marked explicit.
+                                     isImplicit(), // Compiler-generated.
+                                     isDeleted(), isInstantiated())))
+
+          .bind("conversion"),
+      this);
 }
 
 // Looks for the token matching the predicate and returns the range of the found
@@ -75,12 +85,26 @@ static bool isStdInitializerList(QualType Type) {
 }
 
 void ExplicitConstructorCheck::check(const MatchFinder::MatchResult &Result) {
-  const CXXConstructorDecl *Ctor =
-      Result.Nodes.getNodeAs<CXXConstructorDecl>("ctor");
-  // Do not be confused: isExplicit means 'explicit' keyword is present,
-  // isImplicit means that it's a compiler-generated constructor.
-  if (Ctor->isOutOfLine() || Ctor->isImplicit() || Ctor->isDeleted() ||
-      Ctor->getNumParams() == 0 || Ctor->getMinRequiredArguments() > 1)
+  constexpr char WarningMessage[] =
+      "%0 must be marked explicit to avoid unintentional implicit conversions";
+
+  if (const auto *Conversion =
+      Result.Nodes.getNodeAs<CXXConversionDecl>("conversion")) {
+    if (Conversion->isOutOfLine())
+      return;
+    SourceLocation Loc = Conversion->getLocation();
+    // Ignore all macros until we learn to ignore specific ones (e.g. used in
+    // gmock to define matchers).
+    if (Loc.isMacroID())
+      return;
+    diag(Loc, WarningMessage)
+        << Conversion << FixItHint::CreateInsertion(Loc, "explicit ");
+    return;
+  }
+
+  const auto *Ctor = Result.Nodes.getNodeAs<CXXConstructorDecl>("ctor");
+  if (Ctor->isOutOfLine() || Ctor->getNumParams() == 0 ||
+      Ctor->getMinRequiredArguments() > 1)
     return;
 
   bool takesInitializerList = isStdInitializerList(
@@ -92,8 +116,8 @@ void ExplicitConstructorCheck::check(const MatchFinder::MatchResult &Result) {
              Tok.getRawIdentifier() == "explicit";
     };
     SourceRange ExplicitTokenRange =
-        FindToken(*Result.SourceManager, Result.Context->getLangOpts(),
-                  Ctor->getOuterLocStart(), Ctor->getLocEnd(), isKWExplicit);
+        FindToken(*Result.SourceManager, getLangOpts(),
+                  Ctor->getOuterLocStart(), Ctor->getEndLoc(), isKWExplicit);
     StringRef ConstructorDescription;
     if (Ctor->isMoveConstructor())
       ConstructorDescription = "move";
@@ -102,10 +126,9 @@ void ExplicitConstructorCheck::check(const MatchFinder::MatchResult &Result) {
     else
       ConstructorDescription = "initializer-list";
 
-    DiagnosticBuilder Diag =
-        diag(Ctor->getLocation(),
-             "%0 constructor should not be declared explicit")
-        << ConstructorDescription;
+    auto Diag = diag(Ctor->getLocation(),
+                     "%0 constructor should not be declared explicit")
+                << ConstructorDescription;
     if (ExplicitTokenRange.isValid()) {
       Diag << FixItHint::CreateRemoval(
           CharSourceRange::getCharRange(ExplicitTokenRange));
@@ -120,8 +143,7 @@ void ExplicitConstructorCheck::check(const MatchFinder::MatchResult &Result) {
   bool SingleArgument =
       Ctor->getNumParams() == 1 && !Ctor->getParamDecl(0)->isParameterPack();
   SourceLocation Loc = Ctor->getLocation();
-  diag(Loc,
-       "%0 must be marked explicit to avoid unintentional implicit conversions")
+  diag(Loc, WarningMessage)
       << (SingleArgument
               ? "single-argument constructors"
               : "constructors that are callable with a single argument")

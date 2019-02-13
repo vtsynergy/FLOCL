@@ -1,9 +1,8 @@
 //===--- UniqueptrResetReleaseCheck.cpp - clang-tidy ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -91,7 +90,7 @@ bool areDeletersCompatible(const MatchFinder::MatchResult &Result) {
   return false;
 }
 
-}  // namespace
+} // namespace
 
 void UniqueptrResetReleaseCheck::check(const MatchFinder::MatchResult &Result) {
   if (!areDeletersCompatible(Result))
@@ -107,10 +106,10 @@ void UniqueptrResetReleaseCheck::check(const MatchFinder::MatchResult &Result) {
 
   std::string LeftText = clang::Lexer::getSourceText(
       CharSourceRange::getTokenRange(Left->getSourceRange()),
-      *Result.SourceManager, Result.Context->getLangOpts());
+      *Result.SourceManager, getLangOpts());
   std::string RightText = clang::Lexer::getSourceText(
       CharSourceRange::getTokenRange(Right->getSourceRange()),
-      *Result.SourceManager, Result.Context->getLangOpts());
+      *Result.SourceManager, getLangOpts());
 
   if (ResetMember->isArrow())
     LeftText = "*" + LeftText;
@@ -127,9 +126,8 @@ void UniqueptrResetReleaseCheck::check(const MatchFinder::MatchResult &Result) {
   }
   std::string NewText = LeftText + " = " + RightText;
 
-  diag(ResetMember->getExprLoc(), DiagText)
-      << FixItHint::CreateReplacement(
-          CharSourceRange::getTokenRange(ResetCall->getSourceRange()), NewText);
+  diag(ResetMember->getExprLoc(), DiagText) << FixItHint::CreateReplacement(
+      CharSourceRange::getTokenRange(ResetCall->getSourceRange()), NewText);
 }
 
 } // namespace misc

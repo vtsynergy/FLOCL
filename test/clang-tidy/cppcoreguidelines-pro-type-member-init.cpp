@@ -73,6 +73,11 @@ struct NegativeInClassInitialized {
   NegativeInClassInitialized() {}
 };
 
+struct NegativeInClassInitializedDefaulted {
+  int F = 0;
+  NegativeInClassInitializedDefaulted() = default;
+};
+
 struct NegativeConstructorDelegated {
   int F;
 
@@ -307,6 +312,19 @@ union PositiveUnion {
   // CHECK-FIXES-NOT: float Y{};
 };
 
+union PositiveUnionReversed {
+  PositiveUnionReversed() : X() {} // No message as a union can only initialize one member.
+  PositiveUnionReversed(int) {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: union constructor should initialize one of these fields: Y, X
+
+  // Make sure we don't give Y an initializer.
+  TestEnum Y;
+  // CHECK-FIXES-NOT: TestEnum Y{};
+
+  int X;
+  // CHECK-FIXES: int X{};
+};
+
 struct PositiveAnonymousUnionAndStruct {
   PositiveAnonymousUnionAndStruct() {}
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: constructor does not initialize these fields: A, B, Y, Z, C, D, E, F, X
@@ -367,3 +385,118 @@ class PositiveIndirectMember {
   PositiveIndirectMember() {}
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: constructor does not initialize these fields: A
 };
+
+void Bug30487()
+{
+  NegativeInClassInitializedDefaulted s;
+}
+
+struct PositiveVirtualMethod {
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: constructor does not initialize these fields: F
+  int F;
+  // CHECK-FIXES: int F{};
+  virtual int f() = 0;
+};
+
+struct PositiveVirtualDestructor {
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: constructor does not initialize these fields: F
+  PositiveVirtualDestructor() = default;
+  int F;
+  // CHECK-FIXES: int F{};
+  virtual ~PositiveVirtualDestructor() {}
+};
+
+struct PositiveVirtualBase : public virtual NegativeAggregateType {
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: constructor does not initialize these bases: NegativeAggregateType
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: constructor does not initialize these fields: F
+  int F;
+  // CHECK-FIXES: int F{};
+};
+
+template <typename T>
+struct PositiveTemplateVirtualDestructor {
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: constructor does not initialize these fields: F
+  T Val;
+  int F;
+  // CHECK-FIXES: int F{};
+  virtual ~PositiveTemplateVirtualDestructor() = default;
+};
+
+template struct PositiveTemplateVirtualDestructor<int>;
+
+#define UNINITIALIZED_FIELD_IN_MACRO_BODY_VIRTUAL(FIELD) \
+  struct UninitializedFieldVirtual##FIELD {              \
+    int FIELD;                                           \
+    virtual ~UninitializedFieldVirtual##FIELD() {}       \
+  };                                                     \
+// Ensure FIELD is not initialized since fixes inside of macros are disabled.
+// CHECK-FIXES: int FIELD;
+
+UNINITIALIZED_FIELD_IN_MACRO_BODY_VIRTUAL(F);
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: constructor does not initialize these fields: F
+UNINITIALIZED_FIELD_IN_MACRO_BODY_VIRTUAL(G);
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: constructor does not initialize these fields: G
+
+struct NegativeEmpty {
+};
+
+static void NegativeEmptyVar() {
+  NegativeEmpty e;
+  (void)e;
+}
+
+struct NegativeEmptyMember {
+  NegativeEmptyMember() {}
+  NegativeEmpty e;
+};
+
+struct NegativeEmptyBase : NegativeEmpty {
+  NegativeEmptyBase() {}
+};
+
+struct NegativeEmptyArrayMember {
+  NegativeEmptyArrayMember() {}
+  char e[0];
+};
+
+struct NegativeIncompleteArrayMember {
+  NegativeIncompleteArrayMember() {}
+  char e[];
+};
+
+template <typename T> class NoCrash {
+  class B : public NoCrash {
+    template <typename U> B(U u) {}
+  };
+};
+
+struct PositiveBitfieldMember {
+  PositiveBitfieldMember() {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: constructor does not initialize these fields: F
+  unsigned F : 5;
+  // CHECK-FIXES-NOT: unsigned F : 5{};
+};
+
+struct NegativeUnnamedBitfieldMember {
+  NegativeUnnamedBitfieldMember() {}
+  unsigned : 5;
+};
+
+struct NegativeInitializedBitfieldMembers {
+  NegativeInitializedBitfieldMembers() : F(3) { G = 2; }
+  unsigned F : 5;
+  unsigned G : 5;
+};
+
+struct NegativeImplicitInheritedCtorBase {
+  NegativeImplicitInheritedCtorBase(unsigned F) : F(F) {}
+  unsigned F;
+};
+
+struct NegativeImplicitInheritedCtor : NegativeImplicitInheritedCtorBase {
+  using NegativeImplicitInheritedCtorBase::NegativeImplicitInheritedCtorBase;
+};
+
+void Bug33557() {
+  NegativeImplicitInheritedCtor I(5);
+}

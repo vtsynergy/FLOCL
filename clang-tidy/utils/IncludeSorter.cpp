@@ -1,9 +1,8 @@
 //===---------- IncludeSorter.cpp - clang-tidy ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -61,7 +60,8 @@ DetermineIncludeKind(StringRef CanonicalFile, StringRef IncludeFile,
                                       : IncludeSorter::IK_CXXSystemInclude;
   }
   StringRef CanonicalInclude = MakeCanonicalName(IncludeFile, Style);
-  if (CanonicalFile.equals(CanonicalInclude)) {
+  if (CanonicalFile.endswith(CanonicalInclude)
+      || CanonicalInclude.endswith(CanonicalFile)) {
     return IncludeSorter::IK_MainTUInclude;
   }
   if (Style == IncludeSorter::IS_Google) {

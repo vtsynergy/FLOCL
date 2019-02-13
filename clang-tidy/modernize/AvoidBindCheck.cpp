@@ -1,17 +1,29 @@
-//===--- AvoidBindCheck.cpp - clang-tidy--------------------------------===//
+//===--- AvoidBindCheck.cpp - clang-tidy-----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "AvoidBindCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangOptions.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/Lexer.h"
-#include <cassert>
-#include <unordered_map>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/Regex.h"
+#include "llvm/Support/raw_ostream.h"
+#include <algorithm>
+#include <cstddef>
+#include <string>
 
 using namespace clang::ast_matchers;
 
@@ -20,6 +32,7 @@ namespace tidy {
 namespace modernize {
 
 namespace {
+
 enum BindArgumentKind { BK_Temporary, BK_Placeholder, BK_CallExpr, BK_Other };
 
 struct BindArgument {
@@ -45,7 +58,7 @@ buildBindArguments(const MatchFinder::MatchResult &Result, const CallExpr *C) {
     }
 
     B.Tokens = Lexer::getSourceText(
-        CharSourceRange::getTokenRange(E->getLocStart(), E->getLocEnd()),
+        CharSourceRange::getTokenRange(E->getBeginLoc(), E->getEndLoc()),
         *Result.SourceManager, Result.Context->getLangOpts());
 
     SmallVector<StringRef, 2> Matches;
@@ -108,15 +121,16 @@ void AvoidBindCheck::registerMatchers(MatchFinder *Finder) {
     return;
 
   Finder->addMatcher(
-      callExpr(callee(namedDecl(hasName("::std::bind"))),
-               hasArgument(0, declRefExpr(to(functionDecl().bind("f")))))
+      callExpr(
+          callee(namedDecl(hasName("::std::bind"))),
+          hasArgument(0, declRefExpr(to(functionDecl().bind("f"))).bind("ref")))
           .bind("bind"),
       this);
 }
 
 void AvoidBindCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *MatchedDecl = Result.Nodes.getNodeAs<CallExpr>("bind");
-  auto Diag = diag(MatchedDecl->getLocStart(), "prefer a lambda to std::bind");
+  auto Diag = diag(MatchedDecl->getBeginLoc(), "prefer a lambda to std::bind");
 
   const auto Args = buildBindArguments(Result, MatchedDecl);
 
@@ -148,14 +162,17 @@ void AvoidBindCheck::check(const MatchFinder::MatchResult &Result) {
 
   bool HasCapturedArgument = llvm::any_of(
       Args, [](const BindArgument &B) { return B.Kind == BK_Other; });
-
+  const auto *Ref = Result.Nodes.getNodeAs<DeclRefExpr>("ref");
   Stream << "[" << (HasCapturedArgument ? "=" : "") << "]";
   addPlaceholderArgs(Args, Stream);
-  Stream << " { return " << F->getName() << "(";
+  Stream << " { return ";
+  Ref->printPretty(Stream, nullptr, Result.Context->getPrintingPolicy());
+  Stream << "(";
   addFunctionCallArgs(Args, Stream);
-  Stream << "); };";
+  Stream << "); }";
 
-  Diag << FixItHint::CreateReplacement(MatchedDecl->getSourceRange(), Stream.str());
+  Diag << FixItHint::CreateReplacement(MatchedDecl->getSourceRange(),
+                                       Stream.str());
 }
 
 } // namespace modernize

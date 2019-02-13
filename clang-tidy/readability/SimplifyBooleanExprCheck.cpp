@@ -1,13 +1,13 @@
 //===--- SimplifyBooleanExpr.cpp clang-tidy ---------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "SimplifyBooleanExprCheck.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Lex/Lexer.h"
 
 #include <cassert>
@@ -33,10 +33,6 @@ StringRef getText(const MatchFinder::MatchResult &Result, T &Node) {
   return getText(Result, Node.getSourceRange());
 }
 
-const char RightExpressionId[] = "bool-op-expr-yields-expr";
-const char LeftExpressionId[] = "expr-op-bool-yields-expr";
-const char NegatedRightExpressionId[] = "bool-op-expr-yields-not-expr";
-const char NegatedLeftExpressionId[] = "expr-op-bool-yields-not-expr";
 const char ConditionThenStmtId[] = "if-bool-yields-then";
 const char ConditionElseStmtId[] = "if-bool-yields-else";
 const char TernaryId[] = "ternary-bool-yields-condition";
@@ -54,8 +50,6 @@ const char CompoundBoolId[] = "compound-bool";
 const char CompoundNotBoolId[] = "compound-bool-not";
 
 const char IfStmtId[] = "if";
-const char LHSId[] = "lhs-expr";
-const char RHSId[] = "rhs-expr";
 
 const char SimplifyOperatorDiagnostic[] =
     "redundant boolean literal supplied to boolean operator";
@@ -67,10 +61,7 @@ const char SimplifyConditionalReturnDiagnostic[] =
 const CXXBoolLiteralExpr *getBoolLiteral(const MatchFinder::MatchResult &Result,
                                          StringRef Id) {
   const auto *Literal = Result.Nodes.getNodeAs<CXXBoolLiteralExpr>(Id);
-  return (Literal &&
-          Result.SourceManager->isMacroBodyExpansion(Literal->getLocStart()))
-             ? nullptr
-             : Literal;
+  return (Literal && Literal->getBeginLoc().isMacroID()) ? nullptr : Literal;
 }
 
 internal::Matcher<Stmt> returnsBool(bool Value, StringRef Id = "ignored") {
@@ -203,6 +194,9 @@ std::string compareExpressionToZero(const MatchFinder::MatchResult &Result,
 std::string replacementExpression(const MatchFinder::MatchResult &Result,
                                   bool Negated, const Expr *E) {
   E = E->ignoreParenBaseCasts();
+  if (const auto *EC = dyn_cast<ExprWithCleanups>(E))
+    E = EC->getSubExpr();
+
   const bool NeedsStaticCast = needsStaticCast(E);
   if (Negated) {
     if (const auto *UnOp = dyn_cast<UnaryOperator>(E)) {
@@ -323,6 +317,23 @@ bool containsDiscardedTokens(const MatchFinder::MatchResult &Result,
 
 } // namespace
 
+class SimplifyBooleanExprCheck::Visitor : public RecursiveASTVisitor<Visitor> {
+ public:
+  Visitor(SimplifyBooleanExprCheck *Check,
+          const MatchFinder::MatchResult &Result)
+      : Check(Check), Result(Result) {}
+
+  bool VisitBinaryOperator(BinaryOperator *Op) {
+    Check->reportBinOp(Result, Op);
+    return true;
+  }
+
+ private:
+  SimplifyBooleanExprCheck *Check;
+  const MatchFinder::MatchResult &Result;
+};
+
+
 SimplifyBooleanExprCheck::SimplifyBooleanExprCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
@@ -330,63 +341,82 @@ SimplifyBooleanExprCheck::SimplifyBooleanExprCheck(StringRef Name,
       ChainedConditionalAssignment(
           Options.get("ChainedConditionalAssignment", 0U)) {}
 
-void SimplifyBooleanExprCheck::matchBoolBinOpExpr(MatchFinder *Finder,
-                                                  bool Value,
-                                                  StringRef OperatorName,
-                                                  StringRef BooleanId) {
-  Finder->addMatcher(
-      binaryOperator(
-          isExpansionInMainFile(), hasOperatorName(OperatorName),
-          hasLHS(allOf(expr().bind(LHSId),
-                       cxxBoolLiteral(equals(Value)).bind(BooleanId))),
-          hasRHS(expr().bind(RHSId)),
-          unless(hasRHS(hasDescendant(cxxBoolLiteral())))),
-      this);
+bool containsBoolLiteral(const Expr *E) {
+  if (!E)
+    return false;
+  E = E->IgnoreParenImpCasts();
+  if (isa<CXXBoolLiteralExpr>(E))
+    return true;
+  if (const auto *BinOp = dyn_cast<BinaryOperator>(E))
+    return containsBoolLiteral(BinOp->getLHS()) ||
+           containsBoolLiteral(BinOp->getRHS());
+  if (const auto *UnaryOp = dyn_cast<UnaryOperator>(E))
+    return containsBoolLiteral(UnaryOp->getSubExpr());
+  return false;
 }
 
-void SimplifyBooleanExprCheck::matchExprBinOpBool(MatchFinder *Finder,
-                                                  bool Value,
-                                                  StringRef OperatorName,
-                                                  StringRef BooleanId) {
-  Finder->addMatcher(
-      binaryOperator(
-          isExpansionInMainFile(), hasOperatorName(OperatorName),
-          hasLHS(expr().bind(LHSId)),
-          unless(
-              hasLHS(anyOf(cxxBoolLiteral(), hasDescendant(cxxBoolLiteral())))),
-          hasRHS(allOf(expr().bind(RHSId),
-                       cxxBoolLiteral(equals(Value)).bind(BooleanId)))),
-      this);
-}
+void SimplifyBooleanExprCheck::reportBinOp(
+    const MatchFinder::MatchResult &Result, const BinaryOperator *Op) {
+  const auto *LHS = Op->getLHS()->IgnoreParenImpCasts();
+  const auto *RHS = Op->getRHS()->IgnoreParenImpCasts();
 
-void SimplifyBooleanExprCheck::matchBoolCompOpExpr(MatchFinder *Finder,
-                                                   bool Value,
-                                                   StringRef OperatorName,
-                                                   StringRef BooleanId) {
-  Finder->addMatcher(
-      binaryOperator(
-          isExpansionInMainFile(), hasOperatorName(OperatorName),
-          hasLHS(allOf(
-              expr().bind(LHSId),
-              ignoringImpCasts(cxxBoolLiteral(equals(Value)).bind(BooleanId)))),
-          hasRHS(expr().bind(RHSId)),
-          unless(hasRHS(hasDescendant(cxxBoolLiteral())))),
-      this);
-}
+  const CXXBoolLiteralExpr *Bool = nullptr;
+  const Expr *Other = nullptr;
+  if ((Bool = dyn_cast<CXXBoolLiteralExpr>(LHS)))
+    Other = RHS;
+  else if ((Bool = dyn_cast<CXXBoolLiteralExpr>(RHS)))
+    Other = LHS;
+  else
+    return;
 
-void SimplifyBooleanExprCheck::matchExprCompOpBool(MatchFinder *Finder,
-                                                   bool Value,
-                                                   StringRef OperatorName,
-                                                   StringRef BooleanId) {
-  Finder->addMatcher(
-      binaryOperator(
-          isExpansionInMainFile(), hasOperatorName(OperatorName),
-          unless(hasLHS(hasDescendant(cxxBoolLiteral()))),
-          hasLHS(expr().bind(LHSId)),
-          hasRHS(allOf(expr().bind(RHSId),
-                       ignoringImpCasts(
-                           cxxBoolLiteral(equals(Value)).bind(BooleanId))))),
-      this);
+  if (Bool->getBeginLoc().isMacroID())
+    return;
+
+  // FIXME: why do we need this?
+  if (!isa<CXXBoolLiteralExpr>(Other) && containsBoolLiteral(Other))
+    return;
+
+  bool BoolValue = Bool->getValue();
+
+  auto replaceWithExpression = [this, &Result, LHS, RHS, Bool](
+                                   const Expr *ReplaceWith, bool Negated) {
+    std::string Replacement =
+        replacementExpression(Result, Negated, ReplaceWith);
+    SourceRange Range(LHS->getBeginLoc(), RHS->getEndLoc());
+    issueDiag(Result, Bool->getBeginLoc(), SimplifyOperatorDiagnostic, Range,
+              Replacement);
+  };
+
+  switch (Op->getOpcode()) {
+    case BO_LAnd:
+      if (BoolValue) {
+        // expr && true -> expr
+        replaceWithExpression(Other, /*Negated=*/false);
+      } else {
+        // expr && false -> false
+        replaceWithExpression(Bool, /*Negated=*/false);
+      }
+      break;
+    case BO_LOr:
+      if (BoolValue) {
+        // expr || true -> true
+        replaceWithExpression(Bool, /*Negated=*/false);
+      } else {
+        // expr || false -> expr
+        replaceWithExpression(Other, /*Negated=*/false);
+      }
+      break;
+    case BO_EQ:
+      // expr == true -> expr, expr == false -> !expr
+      replaceWithExpression(Other, /*Negated=*/!BoolValue);
+      break;
+    case BO_NE:
+      // expr != true -> !expr, expr != false -> expr
+      replaceWithExpression(Other, /*Negated=*/BoolValue);
+      break;
+    default:
+      break;
+  }
 }
 
 void SimplifyBooleanExprCheck::matchBoolCondition(MatchFinder *Finder,
@@ -458,12 +488,12 @@ void SimplifyBooleanExprCheck::matchCompoundIfReturnsBool(MatchFinder *Finder,
                                                           bool Value,
                                                           StringRef Id) {
   Finder->addMatcher(
-      compoundStmt(allOf(hasAnySubstatement(ifStmt(hasThen(returnsBool(Value)),
-                                                   unless(hasElse(stmt())))),
-                         hasAnySubstatement(
-                             returnStmt(has(ignoringParenImpCasts(
+      compoundStmt(
+          hasAnySubstatement(
+              ifStmt(hasThen(returnsBool(Value)), unless(hasElse(stmt())))),
+          hasAnySubstatement(returnStmt(has(ignoringParenImpCasts(
                                             cxxBoolLiteral(equals(!Value)))))
-                                 .bind(CompoundReturnId))))
+                                 .bind(CompoundReturnId)))
           .bind(Id),
       this);
 }
@@ -475,25 +505,7 @@ void SimplifyBooleanExprCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void SimplifyBooleanExprCheck::registerMatchers(MatchFinder *Finder) {
-  matchBoolBinOpExpr(Finder, true, "&&", RightExpressionId);
-  matchBoolBinOpExpr(Finder, false, "||", RightExpressionId);
-  matchExprBinOpBool(Finder, false, "&&", RightExpressionId);
-  matchExprBinOpBool(Finder, true, "||", RightExpressionId);
-  matchBoolCompOpExpr(Finder, true, "==", RightExpressionId);
-  matchBoolCompOpExpr(Finder, false, "!=", RightExpressionId);
-
-  matchExprBinOpBool(Finder, true, "&&", LeftExpressionId);
-  matchExprBinOpBool(Finder, false, "||", LeftExpressionId);
-  matchBoolBinOpExpr(Finder, false, "&&", LeftExpressionId);
-  matchBoolBinOpExpr(Finder, true, "||", LeftExpressionId);
-  matchExprCompOpBool(Finder, true, "==", LeftExpressionId);
-  matchExprCompOpBool(Finder, false, "!=", LeftExpressionId);
-
-  matchBoolCompOpExpr(Finder, false, "==", NegatedRightExpressionId);
-  matchBoolCompOpExpr(Finder, true, "!=", NegatedRightExpressionId);
-
-  matchExprCompOpBool(Finder, false, "==", NegatedLeftExpressionId);
-  matchExprCompOpBool(Finder, true, "!=", NegatedLeftExpressionId);
+  Finder->addMatcher(translationUnitDecl().bind("top"), this);
 
   matchBoolCondition(Finder, true, ConditionThenStmtId);
   matchBoolCondition(Finder, false, ConditionElseStmtId);
@@ -512,18 +524,8 @@ void SimplifyBooleanExprCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void SimplifyBooleanExprCheck::check(const MatchFinder::MatchResult &Result) {
-  if (const CXXBoolLiteralExpr *LeftRemoved =
-          getBoolLiteral(Result, RightExpressionId))
-    replaceWithExpression(Result, LeftRemoved, false);
-  else if (const CXXBoolLiteralExpr *RightRemoved =
-               getBoolLiteral(Result, LeftExpressionId))
-    replaceWithExpression(Result, RightRemoved, true);
-  else if (const CXXBoolLiteralExpr *NegatedLeftRemoved =
-               getBoolLiteral(Result, NegatedRightExpressionId))
-    replaceWithExpression(Result, NegatedLeftRemoved, false, true);
-  else if (const CXXBoolLiteralExpr *NegatedRightRemoved =
-               getBoolLiteral(Result, NegatedLeftExpressionId))
-    replaceWithExpression(Result, NegatedRightRemoved, true, true);
+  if (Result.Nodes.getNodeAs<TranslationUnitDecl>("top"))
+    Visitor(this, Result).TraverseAST(*Result.Context);
   else if (const CXXBoolLiteralExpr *TrueConditionRemoved =
                getBoolLiteral(Result, ConditionThenStmtId))
     replaceWithThenStatement(Result, TrueConditionRemoved);
@@ -559,32 +561,20 @@ void SimplifyBooleanExprCheck::issueDiag(
     const ast_matchers::MatchFinder::MatchResult &Result, SourceLocation Loc,
     StringRef Description, SourceRange ReplacementRange,
     StringRef Replacement) {
-  CharSourceRange CharRange = Lexer::makeFileCharRange(
-      CharSourceRange::getTokenRange(ReplacementRange), *Result.SourceManager,
-      Result.Context->getLangOpts());
+  CharSourceRange CharRange =
+      Lexer::makeFileCharRange(CharSourceRange::getTokenRange(ReplacementRange),
+                               *Result.SourceManager, getLangOpts());
 
   DiagnosticBuilder Diag = diag(Loc, Description);
   if (!containsDiscardedTokens(Result, CharRange))
     Diag << FixItHint::CreateReplacement(CharRange, Replacement);
 }
 
-void SimplifyBooleanExprCheck::replaceWithExpression(
-    const ast_matchers::MatchFinder::MatchResult &Result,
-    const CXXBoolLiteralExpr *BoolLiteral, bool UseLHS, bool Negated) {
-  const auto *LHS = Result.Nodes.getNodeAs<Expr>(LHSId);
-  const auto *RHS = Result.Nodes.getNodeAs<Expr>(RHSId);
-  std::string Replacement =
-      replacementExpression(Result, Negated, UseLHS ? LHS : RHS);
-  SourceRange Range(LHS->getLocStart(), RHS->getLocEnd());
-  issueDiag(Result, BoolLiteral->getLocStart(), SimplifyOperatorDiagnostic,
-            Range, Replacement);
-}
-
 void SimplifyBooleanExprCheck::replaceWithThenStatement(
     const MatchFinder::MatchResult &Result,
     const CXXBoolLiteralExpr *TrueConditionRemoved) {
   const auto *IfStatement = Result.Nodes.getNodeAs<IfStmt>(IfStmtId);
-  issueDiag(Result, TrueConditionRemoved->getLocStart(),
+  issueDiag(Result, TrueConditionRemoved->getBeginLoc(),
             SimplifyConditionDiagnostic, IfStatement->getSourceRange(),
             getText(Result, *IfStatement->getThen()));
 }
@@ -594,7 +584,7 @@ void SimplifyBooleanExprCheck::replaceWithElseStatement(
     const CXXBoolLiteralExpr *FalseConditionRemoved) {
   const auto *IfStatement = Result.Nodes.getNodeAs<IfStmt>(IfStmtId);
   const Stmt *ElseStatement = IfStatement->getElse();
-  issueDiag(Result, FalseConditionRemoved->getLocStart(),
+  issueDiag(Result, FalseConditionRemoved->getBeginLoc(),
             SimplifyConditionDiagnostic, IfStatement->getSourceRange(),
             ElseStatement ? getText(Result, *ElseStatement) : "");
 }
@@ -604,7 +594,7 @@ void SimplifyBooleanExprCheck::replaceWithCondition(
     bool Negated) {
   std::string Replacement =
       replacementExpression(Result, Negated, Ternary->getCond());
-  issueDiag(Result, Ternary->getTrueExpr()->getLocStart(),
+  issueDiag(Result, Ternary->getTrueExpr()->getBeginLoc(),
             "redundant boolean literal in ternary expression result",
             Ternary->getSourceRange(), Replacement);
 }
@@ -615,7 +605,7 @@ void SimplifyBooleanExprCheck::replaceWithReturnCondition(
   std::string Condition = replacementExpression(Result, Negated, If->getCond());
   std::string Replacement = ("return " + Condition + Terminator).str();
   SourceLocation Start =
-      Result.Nodes.getNodeAs<CXXBoolLiteralExpr>(ThenLiteralId)->getLocStart();
+      Result.Nodes.getNodeAs<CXXBoolLiteralExpr>(ThenLiteralId)->getBeginLoc();
   issueDiag(Result, Start, SimplifyConditionalReturnDiagnostic,
             If->getSourceRange(), Replacement);
 }
@@ -647,8 +637,8 @@ void SimplifyBooleanExprCheck::replaceCompoundReturnWithCondition(
           std::string Replacement =
               "return " + replacementExpression(Result, Negated, Condition);
           issueDiag(
-              Result, Lit->getLocStart(), SimplifyConditionalReturnDiagnostic,
-              SourceRange(If->getLocStart(), Ret->getLocEnd()), Replacement);
+              Result, Lit->getBeginLoc(), SimplifyConditionalReturnDiagnostic,
+              SourceRange(If->getBeginLoc(), Ret->getEndLoc()), Replacement);
           return;
         }
 
@@ -672,7 +662,7 @@ void SimplifyBooleanExprCheck::replaceWithAssignment(
   std::string Replacement =
       (VariableName + " = " + Condition + Terminator).str();
   SourceLocation Location =
-      Result.Nodes.getNodeAs<CXXBoolLiteralExpr>(IfAssignLocId)->getLocStart();
+      Result.Nodes.getNodeAs<CXXBoolLiteralExpr>(IfAssignLocId)->getBeginLoc();
   issueDiag(Result, Location,
             "redundant boolean literal in conditional assignment", Range,
             Replacement);

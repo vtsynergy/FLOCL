@@ -1,9 +1,8 @@
 //===--- IdentifierNamingCheck.h - clang-tidy -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,22 +47,20 @@ public:
     CT_CamelBack,
     CT_UpperCase,
     CT_CamelCase,
+    CT_CamelSnakeCase,
+    CT_CamelSnakeBack
   };
 
   struct NamingStyle {
-    NamingStyle() : Case(CT_AnyCase) {}
+    NamingStyle() = default;
 
-    NamingStyle(CaseType Case, const std::string &Prefix,
+    NamingStyle(llvm::Optional<CaseType> Case, const std::string &Prefix,
                 const std::string &Suffix)
         : Case(Case), Prefix(Prefix), Suffix(Suffix) {}
 
-    CaseType Case;
+    llvm::Optional<CaseType> Case;
     std::string Prefix;
     std::string Suffix;
-
-    bool isSet() const {
-      return !(Case == CT_AnyCase && Prefix.empty() && Suffix.empty());
-    }
   };
 
   /// \brief Holds an identifier name check failure, tracking the kind of the
@@ -99,7 +96,7 @@ public:
   void expandMacro(const Token &MacroNameTok, const MacroInfo *MI);
 
 private:
-  std::vector<NamingStyle> NamingStyles;
+  std::vector<llvm::Optional<NamingStyle>> NamingStyles;
   bool IgnoreFailedSplit;
   NamingCheckFailureMap NamingCheckFailures;
 };

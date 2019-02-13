@@ -1,9 +1,8 @@
 //===--- ClangTidyOptions.cpp - clang-tidy ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,8 +26,6 @@ using OptionsSource = clang::tidy::ClangTidyOptionsProvider::OptionsSource;
 
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(FileFilter)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(FileFilter::LineRange)
-LLVM_YAML_IS_SEQUENCE_VECTOR(ClangTidyOptions::StringPair)
-LLVM_YAML_IS_SEQUENCE_VECTOR(std::string)
 
 namespace llvm {
 namespace yaml {
@@ -85,10 +82,12 @@ template <> struct MappingTraits<ClangTidyOptions> {
   static void mapping(IO &IO, ClangTidyOptions &Options) {
     MappingNormalization<NOptionMap, ClangTidyOptions::OptionMap> NOpts(
         IO, Options.CheckOptions);
+    bool Ignored = false;
     IO.mapOptional("Checks", Options.Checks);
     IO.mapOptional("WarningsAsErrors", Options.WarningsAsErrors);
     IO.mapOptional("HeaderFilterRegex", Options.HeaderFilterRegex);
-    IO.mapOptional("AnalyzeTemporaryDtors", Options.AnalyzeTemporaryDtors);
+    IO.mapOptional("AnalyzeTemporaryDtors", Ignored); // legacy compatibility
+    IO.mapOptional("FormatStyle", Options.FormatStyle);
     IO.mapOptional("User", Options.User);
     IO.mapOptional("CheckOptions", NOpts->Options);
     IO.mapOptional("ExtraArgs", Options.ExtraArgs);
@@ -108,7 +107,7 @@ ClangTidyOptions ClangTidyOptions::getDefaults() {
   Options.WarningsAsErrors = "";
   Options.HeaderFilterRegex = "";
   Options.SystemHeaders = false;
-  Options.AnalyzeTemporaryDtors = false;
+  Options.FormatStyle = "none";
   Options.User = llvm::None;
   for (ClangTidyModuleRegistry::iterator I = ClangTidyModuleRegistry::begin(),
                                          E = ClangTidyModuleRegistry::end();
@@ -117,34 +116,40 @@ ClangTidyOptions ClangTidyOptions::getDefaults() {
   return Options;
 }
 
+template <typename T>
+static void mergeVectors(Optional<T> &Dest, const Optional<T> &Src) {
+  if (Src) {
+    if (Dest)
+      Dest->insert(Dest->end(), Src->begin(), Src->end());
+    else
+      Dest = Src;
+  }
+}
+
+static void mergeCommaSeparatedLists(Optional<std::string> &Dest,
+                                     const Optional<std::string> &Src) {
+  if (Src)
+    Dest = (Dest && !Dest->empty() ? *Dest + "," : "") + *Src;
+}
+
+template <typename T>
+static void overrideValue(Optional<T> &Dest, const Optional<T> &Src) {
+  if (Src)
+    Dest = Src;
+}
+
 ClangTidyOptions
 ClangTidyOptions::mergeWith(const ClangTidyOptions &Other) const {
   ClangTidyOptions Result = *this;
 
-  // Merge comma-separated glob lists by appending the new value after a comma.
-  if (Other.Checks)
-    Result.Checks =
-        (Result.Checks && !Result.Checks->empty() ? *Result.Checks + "," : "") +
-        *Other.Checks;
-  if (Other.WarningsAsErrors)
-    Result.WarningsAsErrors =
-        (Result.WarningsAsErrors && !Result.WarningsAsErrors->empty()
-             ? *Result.WarningsAsErrors + ","
-             : "") +
-        *Other.WarningsAsErrors;
-
-  if (Other.HeaderFilterRegex)
-    Result.HeaderFilterRegex = Other.HeaderFilterRegex;
-  if (Other.SystemHeaders)
-    Result.SystemHeaders = Other.SystemHeaders;
-  if (Other.AnalyzeTemporaryDtors)
-    Result.AnalyzeTemporaryDtors = Other.AnalyzeTemporaryDtors;
-  if (Other.User)
-    Result.User = Other.User;
-  if (Other.ExtraArgs)
-    Result.ExtraArgs = Other.ExtraArgs;
-  if (Other.ExtraArgsBefore)
-    Result.ExtraArgsBefore = Other.ExtraArgsBefore;
+  mergeCommaSeparatedLists(Result.Checks, Other.Checks);
+  mergeCommaSeparatedLists(Result.WarningsAsErrors, Other.WarningsAsErrors);
+  overrideValue(Result.HeaderFilterRegex, Other.HeaderFilterRegex);
+  overrideValue(Result.SystemHeaders, Other.SystemHeaders);
+  overrideValue(Result.FormatStyle, Other.FormatStyle);
+  overrideValue(Result.User, Other.User);
+  mergeVectors(Result.ExtraArgs, Other.ExtraArgs);
+  mergeVectors(Result.ExtraArgsBefore, Other.ExtraArgsBefore);
 
   for (const auto &KeyValue : Other.CheckOptions)
     Result.CheckOptions[KeyValue.first] = KeyValue.second;
@@ -197,9 +202,12 @@ ConfigOptionsProvider::getRawOptions(llvm::StringRef FileName) {
 FileOptionsProvider::FileOptionsProvider(
     const ClangTidyGlobalOptions &GlobalOptions,
     const ClangTidyOptions &DefaultOptions,
-    const ClangTidyOptions &OverrideOptions)
+    const ClangTidyOptions &OverrideOptions,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : DefaultOptionsProvider(GlobalOptions, DefaultOptions),
-      OverrideOptions(OverrideOptions) {
+      OverrideOptions(OverrideOptions), FS(std::move(VFS)) {
+  if (!FS)
+    FS = llvm::vfs::getRealFileSystem();
   ConfigHandlers.emplace_back(".clang-tidy", parseConfiguration);
 }
 
@@ -209,23 +217,29 @@ FileOptionsProvider::FileOptionsProvider(
     const ClangTidyOptions &OverrideOptions,
     const FileOptionsProvider::ConfigFileHandlers &ConfigHandlers)
     : DefaultOptionsProvider(GlobalOptions, DefaultOptions),
-      OverrideOptions(OverrideOptions), ConfigHandlers(ConfigHandlers) {
-}
+      OverrideOptions(OverrideOptions), ConfigHandlers(ConfigHandlers) {}
 
 // FIXME: This method has some common logic with clang::format::getStyle().
 // Consider pulling out common bits to a findParentFileWithName function or
 // similar.
 std::vector<OptionsSource>
 FileOptionsProvider::getRawOptions(StringRef FileName) {
-  DEBUG(llvm::dbgs() << "Getting options for file " << FileName << "...\n");
+  LLVM_DEBUG(llvm::dbgs() << "Getting options for file " << FileName
+                          << "...\n");
+  assert(FS && "FS must be set.");
+
+  llvm::SmallString<128> AbsoluteFilePath(FileName);
+
+  if (FS->makeAbsolute(AbsoluteFilePath))
+    return {};
 
   std::vector<OptionsSource> RawOptions =
-      DefaultOptionsProvider::getRawOptions(FileName);
+      DefaultOptionsProvider::getRawOptions(AbsoluteFilePath.str());
   OptionsSource CommandLineOptions(OverrideOptions,
                                    OptionsSourceTypeCheckCommandLineOption);
   // Look for a suitable configuration file in all parent directories of the
   // file. Start with the immediate parent directory and move up.
-  StringRef Path = llvm::sys::path::parent_path(FileName);
+  StringRef Path = llvm::sys::path::parent_path(AbsoluteFilePath.str());
   for (StringRef CurrentPath = Path; !CurrentPath.empty();
        CurrentPath = llvm::sys::path::parent_path(CurrentPath)) {
     llvm::Optional<OptionsSource> Result;
@@ -240,8 +254,8 @@ FileOptionsProvider::getRawOptions(StringRef FileName) {
     if (Result) {
       // Store cached value for all intermediate directories.
       while (Path != CurrentPath) {
-        DEBUG(llvm::dbgs() << "Caching configuration for path " << Path
-                           << ".\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Caching configuration for path " << Path << ".\n");
         CachedOptions[Path] = *Result;
         Path = llvm::sys::path::parent_path(Path);
       }
@@ -268,7 +282,7 @@ FileOptionsProvider::tryReadConfigFile(StringRef Directory) {
   for (const ConfigFileHandler &ConfigHandler : ConfigHandlers) {
     SmallString<128> ConfigFile(Directory);
     llvm::sys::path::append(ConfigFile, ConfigHandler.first);
-    DEBUG(llvm::dbgs() << "Trying " << ConfigFile << "...\n");
+    LLVM_DEBUG(llvm::dbgs() << "Trying " << ConfigFile << "...\n");
 
     bool IsFile = false;
     // Ignore errors from is_regular_file: we only need to know if we can read

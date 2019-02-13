@@ -1,9 +1,8 @@
 //===-- IncludeFixerContext.cpp - Include fixer context ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,7 +43,8 @@ std::string createQualifiedNameForReplacement(
   std::string StrippedQualifiers;
   while (!SymbolQualifiers.empty() &&
          !llvm::StringRef(QualifiedName).endswith(SymbolQualifiers.back())) {
-    StrippedQualifiers = "::" + SymbolQualifiers.back().str();
+    StrippedQualifiers =
+        "::" + SymbolQualifiers.back().str() + StrippedQualifiers;
     SymbolQualifiers.pop_back();
   }
   // Append the missing stripped qualifiers.
@@ -75,15 +75,32 @@ std::string createQualifiedNameForReplacement(
 } // anonymous namespace
 
 IncludeFixerContext::IncludeFixerContext(
-    llvm::StringRef Name, llvm::StringRef ScopeQualifiers,
-    std::vector<find_all_symbols::SymbolInfo> Symbols,
-    tooling::Range Range)
-    : SymbolIdentifier(Name), SymbolScopedQualifiers(ScopeQualifiers),
-      MatchedSymbols(std::move(Symbols)), SymbolRange(Range) {
+    StringRef FilePath, std::vector<QuerySymbolInfo> QuerySymbols,
+    std::vector<find_all_symbols::SymbolInfo> Symbols)
+    : FilePath(FilePath), QuerySymbolInfos(std::move(QuerySymbols)),
+      MatchedSymbols(std::move(Symbols)) {
+  // Remove replicated QuerySymbolInfos with the same range.
+  //
+  // QuerySymbolInfos may contain replicated elements. Because CorrectTypo
+  // callback doesn't always work as we expected. In somecases, it will be
+  // triggered at the same position or unidentified symbol multiple times.
+  std::sort(QuerySymbolInfos.begin(), QuerySymbolInfos.end(),
+            [&](const QuerySymbolInfo &A, const QuerySymbolInfo &B) {
+              return std::make_pair(A.Range.getOffset(), A.Range.getLength()) <
+                     std::make_pair(B.Range.getOffset(), B.Range.getLength());
+            });
+  QuerySymbolInfos.erase(
+      std::unique(QuerySymbolInfos.begin(), QuerySymbolInfos.end(),
+                  [](const QuerySymbolInfo &A, const QuerySymbolInfo &B) {
+                    return A.Range == B.Range;
+                  }),
+      QuerySymbolInfos.end());
   for (const auto &Symbol : MatchedSymbols) {
-    HeaderInfos.push_back({Symbol.getFilePath().str(),
-                           createQualifiedNameForReplacement(
-                               SymbolIdentifier, ScopeQualifiers, Symbol)});
+    HeaderInfos.push_back(
+        {Symbol.getFilePath().str(),
+         createQualifiedNameForReplacement(
+             QuerySymbolInfos.front().RawIdentifier,
+             QuerySymbolInfos.front().ScopedQualifiers, Symbol)});
   }
   // Deduplicate header infos.
   HeaderInfos.erase(std::unique(HeaderInfos.begin(), HeaderInfos.end(),

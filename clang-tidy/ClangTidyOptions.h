@@ -1,19 +1,20 @@
 //===--- ClangTidyOptions.h - clang-tidy ------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYOPTIONS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYOPTIONS_H
 
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <functional>
 #include <map>
 #include <string>
@@ -72,8 +73,19 @@ struct ClangTidyOptions {
   /// \brief Output warnings from system headers matching \c HeaderFilterRegex.
   llvm::Optional<bool> SystemHeaders;
 
-  /// \brief Turns on temporary destructor-based analysis.
-  llvm::Optional<bool> AnalyzeTemporaryDtors;
+  /// \brief Format code around applied fixes with clang-format using this
+  /// style.
+  ///
+  /// Can be one of:
+  ///   * 'none' - don't format code around applied fixes;
+  ///   * 'llvm', 'google', 'mozilla' or other predefined clang-format style
+  ///     names;
+  ///   * 'file' - use the .clang-format file in the closest parent directory of
+  ///     each source file;
+  ///   * '{inline-formatting-style-in-yaml-format}'.
+  ///
+  /// See clang-format documentation for more about configuring format style.
+  llvm::Optional<std::string> FormatStyle;
 
   /// \brief Specifies the name or e-mail of the user running clang-tidy.
   ///
@@ -173,7 +185,8 @@ public:
   // \brief A pair of configuration file base name and a function parsing
   // configuration from text in the corresponding format.
   typedef std::pair<std::string, std::function<llvm::ErrorOr<ClangTidyOptions>(
-                                     llvm::StringRef)>> ConfigFileHandler;
+                                     llvm::StringRef)>>
+      ConfigFileHandler;
 
   /// \brief Configuration file handlers listed in the order of priority.
   ///
@@ -204,9 +217,11 @@ public:
   ///
   /// If any of the \param OverrideOptions fields are set, they will override
   /// whatever options are read from the configuration file.
-  FileOptionsProvider(const ClangTidyGlobalOptions &GlobalOptions,
-                      const ClangTidyOptions &DefaultOptions,
-                      const ClangTidyOptions &OverrideOptions);
+  FileOptionsProvider(
+      const ClangTidyGlobalOptions &GlobalOptions,
+      const ClangTidyOptions &DefaultOptions,
+      const ClangTidyOptions &OverrideOptions,
+      llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = nullptr);
 
   /// \brief Initializes the \c FileOptionsProvider instance with a custom set
   /// of configuration file handlers.
@@ -240,6 +255,7 @@ protected:
   llvm::StringMap<OptionsSource> CachedOptions;
   ClangTidyOptions OverrideOptions;
   ConfigFileHandlers ConfigHandlers;
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
 };
 
 /// \brief Parses LineFilter from JSON and stores it to the \p Options.

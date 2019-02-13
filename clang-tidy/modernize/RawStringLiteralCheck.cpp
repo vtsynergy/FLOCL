@@ -1,9 +1,8 @@
 //===--- RawStringLiteralCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -42,28 +41,15 @@ bool isRawStringLiteral(StringRef Text) {
 }
 
 bool containsEscapedCharacters(const MatchFinder::MatchResult &Result,
-                               const StringLiteral *Literal) {
+                               const StringLiteral *Literal,
+                               const CharsBitSet &DisallowedChars) {
   // FIXME: Handle L"", u8"", u"" and U"" literals.
   if (!Literal->isAscii())
     return false;
 
-  StringRef Bytes = Literal->getBytes();
-  // Non-printing characters disqualify this literal:
-  // \007 = \a bell
-  // \010 = \b backspace
-  // \011 = \t horizontal tab
-  // \012 = \n new line
-  // \013 = \v vertical tab
-  // \014 = \f form feed
-  // \015 = \r carriage return
-  // \177 = delete
-  if (Bytes.find_first_of(StringRef("\000\001\002\003\004\005\006\a"
-                                    "\b\t\n\v\f\r\016\017"
-                                    "\020\021\022\023\024\025\026\027"
-                                    "\030\031\032\033\034\035\036\037"
-                                    "\177",
-                                    33)) != StringRef::npos)
-    return false;
+  for (const unsigned char C : Literal->getBytes())
+    if (DisallowedChars.test(C))
+      return false;
 
   CharSourceRange CharRange = Lexer::makeFileCharRange(
       CharSourceRange::getTokenRange(Literal->getSourceRange()),
@@ -101,39 +87,69 @@ std::string asRawStringLiteral(const StringLiteral *Literal,
 RawStringLiteralCheck::RawStringLiteralCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      DelimiterStem(Options.get("DelimiterStem", "lit")) {}
+      DelimiterStem(Options.get("DelimiterStem", "lit")),
+      ReplaceShorterLiterals(Options.get("ReplaceShorterLiterals", false)) {
+  // Non-printing characters are disallowed:
+  // \007 = \a bell
+  // \010 = \b backspace
+  // \011 = \t horizontal tab
+  // \012 = \n new line
+  // \013 = \v vertical tab
+  // \014 = \f form feed
+  // \015 = \r carriage return
+  // \177 = delete
+  for (const unsigned char C : StringRef("\000\001\002\003\004\005\006\a"
+                                         "\b\t\n\v\f\r\016\017"
+                                         "\020\021\022\023\024\025\026\027"
+                                         "\030\031\032\033\034\035\036\037"
+                                         "\177",
+                                         33))
+    DisallowedChars.set(C);
+
+  // Non-ASCII are disallowed too.
+  for (unsigned int C = 0x80u; C <= 0xFFu; ++C)
+    DisallowedChars.set(static_cast<unsigned char>(C));
+}
 
 void RawStringLiteralCheck::storeOptions(ClangTidyOptions::OptionMap &Options) {
   ClangTidyCheck::storeOptions(Options);
+  this->Options.store(Options, "ReplaceShorterLiterals",
+                      ReplaceShorterLiterals);
 }
 
 void RawStringLiteralCheck::registerMatchers(MatchFinder *Finder) {
+  // Raw string literals require C++11 or later.
+  if (!getLangOpts().CPlusPlus11)
+    return;
+
   Finder->addMatcher(
       stringLiteral(unless(hasParent(predefinedExpr()))).bind("lit"), this);
 }
 
 void RawStringLiteralCheck::check(const MatchFinder::MatchResult &Result) {
-  // Raw string literals require C++11 or later.
-  if (!Result.Context->getLangOpts().CPlusPlus11)
-    return;
-
   const auto *Literal = Result.Nodes.getNodeAs<StringLiteral>("lit");
-  if (Literal->getLocStart().isMacroID())
+  if (Literal->getBeginLoc().isMacroID())
     return;
 
-  if (containsEscapedCharacters(Result, Literal))
-    replaceWithRawStringLiteral(Result, Literal);
+  if (containsEscapedCharacters(Result, Literal, DisallowedChars)) {
+    std::string Replacement = asRawStringLiteral(Literal, DelimiterStem);
+    if (ReplaceShorterLiterals ||
+        Replacement.length() <=
+            Lexer::MeasureTokenLength(Literal->getBeginLoc(),
+                                      *Result.SourceManager, getLangOpts()))
+      replaceWithRawStringLiteral(Result, Literal, Replacement);
+  }
 }
 
 void RawStringLiteralCheck::replaceWithRawStringLiteral(
-    const MatchFinder::MatchResult &Result, const StringLiteral *Literal) {
+    const MatchFinder::MatchResult &Result, const StringLiteral *Literal,
+    StringRef Replacement) {
   CharSourceRange CharRange = Lexer::makeFileCharRange(
       CharSourceRange::getTokenRange(Literal->getSourceRange()),
-      *Result.SourceManager, Result.Context->getLangOpts());
-  diag(Literal->getLocStart(),
+      *Result.SourceManager, getLangOpts());
+  diag(Literal->getBeginLoc(),
        "escaped string literal can be written as a raw string literal")
-      << FixItHint::CreateReplacement(
-          CharRange, asRawStringLiteral(Literal, DelimiterStem));
+      << FixItHint::CreateReplacement(CharRange, Replacement);
 }
 
 } // namespace modernize

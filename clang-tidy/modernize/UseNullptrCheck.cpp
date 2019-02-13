@@ -1,9 +1,8 @@
 //===--- UseNullptrCheck.cpp - clang-tidy----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,7 +25,7 @@ const char CastSequence[] = "sequence";
 
 AST_MATCHER(Type, sugaredNullptrType) {
   const Type *DesugaredType = Node.getUnqualifiedDesugaredType();
-  if (const BuiltinType *BT = dyn_cast<BuiltinType>(DesugaredType))
+  if (const auto *BT = dyn_cast<BuiltinType>(DesugaredType))
     return BT->getKind() == BuiltinType::NullPtr;
   return false;
 }
@@ -38,8 +37,8 @@ AST_MATCHER(Type, sugaredNullptrType) {
 /// can be replaced instead of just the inner-most implicit cast.
 StatementMatcher makeCastSequenceMatcher() {
   StatementMatcher ImplicitCastToNull = implicitCastExpr(
-      anyOf(hasCastKind(CK_NullToPointer),
-            hasCastKind(CK_NullToMemberPointer)),
+      anyOf(hasCastKind(CK_NullToPointer), hasCastKind(CK_NullToMemberPointer)),
+      unless(hasImplicitDestinationType(qualType(substTemplateTypeParmType()))),
       unless(hasSourceExpression(hasType(sugaredNullptrType()))));
 
   return castExpr(anyOf(ImplicitCastToNull,
@@ -125,7 +124,7 @@ public:
   }
 
   bool VisitStmt(Stmt *S) {
-    if (SM.getFileLoc(S->getLocStart()) != CastLoc)
+    if (SM.getFileLoc(S->getBeginLoc()) != CastLoc)
       return true;
     Visited = true;
 
@@ -189,21 +188,33 @@ public:
   // Only VisitStmt is overridden as we shouldn't find other base AST types
   // within a cast expression.
   bool VisitStmt(Stmt *S) {
-    CastExpr *C = dyn_cast<CastExpr>(S);
+    auto *C = dyn_cast<CastExpr>(S);
+    // Catch the castExpr inside cxxDefaultArgExpr.
+    if (auto *E = dyn_cast<CXXDefaultArgExpr>(S)) {
+      C = dyn_cast<CastExpr>(E->getExpr());
+      FirstSubExpr = nullptr;
+    }
     if (!C) {
       FirstSubExpr = nullptr;
       return true;
     }
+
+    auto* CastSubExpr = C->getSubExpr()->IgnoreParens();
+    // Ignore cast expressions which cast nullptr literal.
+    if (isa<CXXNullPtrLiteralExpr>(CastSubExpr)) {
+      return true;
+    }
+
     if (!FirstSubExpr)
-      FirstSubExpr = C->getSubExpr()->IgnoreParens();
+      FirstSubExpr = CastSubExpr;
 
     if (C->getCastKind() != CK_NullToPointer &&
         C->getCastKind() != CK_NullToMemberPointer) {
       return true;
     }
 
-    SourceLocation StartLoc = FirstSubExpr->getLocStart();
-    SourceLocation EndLoc = FirstSubExpr->getLocEnd();
+    SourceLocation StartLoc = FirstSubExpr->getBeginLoc();
+    SourceLocation EndLoc = FirstSubExpr->getEndLoc();
 
     // If the location comes from a macro arg expansion, *all* uses of that
     // arg must be checked to result in NullTo(Member)Pointer casts.
@@ -213,17 +224,17 @@ public:
     if (SM.isMacroArgExpansion(StartLoc) && SM.isMacroArgExpansion(EndLoc)) {
       SourceLocation FileLocStart = SM.getFileLoc(StartLoc),
                      FileLocEnd = SM.getFileLoc(EndLoc);
-      SourceLocation ImmediateMarcoArgLoc, MacroLoc;
+      SourceLocation ImmediateMacroArgLoc, MacroLoc;
       // Skip NULL macros used in macro.
-      if (!getMacroAndArgLocations(StartLoc, ImmediateMarcoArgLoc, MacroLoc) ||
-          ImmediateMarcoArgLoc != FileLocStart)
+      if (!getMacroAndArgLocations(StartLoc, ImmediateMacroArgLoc, MacroLoc) ||
+          ImmediateMacroArgLoc != FileLocStart)
         return skipSubTree();
 
       if (isReplaceableRange(FileLocStart, FileLocEnd, SM) &&
           allArgUsesValid(C)) {
         replaceWithNullptr(Check, SM, FileLocStart, FileLocEnd);
       }
-      return skipSubTree();
+      return true;
     }
 
     if (SM.isMacroBodyExpansion(StartLoc) && SM.isMacroBodyExpansion(EndLoc)) {
@@ -257,7 +268,7 @@ private:
   /// \brief Tests that all expansions of a macro arg, one of which expands to
   /// result in \p CE, yield NullTo(Member)Pointer casts.
   bool allArgUsesValid(const CastExpr *CE) {
-    SourceLocation CastLoc = CE->getLocStart();
+    SourceLocation CastLoc = CE->getBeginLoc();
 
     // Step 1: Get location of macro arg and location of the macro the arg was
     // provided to.
@@ -320,7 +331,7 @@ private:
                NullMacros.end();
       }
 
-      MacroLoc = SM.getExpansionRange(ArgLoc).first;
+      MacroLoc = SM.getExpansionRange(ArgLoc).getBegin();
 
       ArgLoc = Expansion.getSpellingLoc().getLocWithOffset(LocInfo.second);
       if (ArgLoc.isFileID())
@@ -375,7 +386,7 @@ private:
         continue;
       }
 
-      MacroLoc = SM.getImmediateExpansionRange(Loc).first;
+      MacroLoc = SM.getImmediateExpansionRange(Loc).getBegin();
       if (MacroLoc.isFileID() && MacroLoc == TestMacroLoc) {
         // Match made.
         return true;
@@ -425,9 +436,9 @@ private:
 
       SourceLocation Loc;
       if (const auto *D = Parent.get<Decl>())
-        Loc = D->getLocStart();
+        Loc = D->getBeginLoc();
       else if (const auto *S = Parent.get<Stmt>())
-        Loc = S->getLocStart();
+        Loc = S->getBeginLoc();
 
       // TypeLoc and NestedNameSpecifierLoc are members of the parent map. Skip
       // them and keep going up.

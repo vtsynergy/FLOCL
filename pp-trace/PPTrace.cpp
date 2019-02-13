@@ -1,9 +1,8 @@
 //===--- tools/pp-trace/PPTrace.cpp - Clang preprocessor tracer -----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -73,11 +72,8 @@
 #include <vector>
 
 using namespace clang;
-using namespace clang::driver;
-using namespace clang::driver::options;
 using namespace clang::tooling;
 using namespace llvm;
-using namespace llvm::opt;
 
 // Options:
 
@@ -161,8 +157,7 @@ static int outputPPTrace(std::vector<CallbackCall> &CallbackCalls,
     const CallbackCall &Callback = *I;
     OS << "- Callback: " << Callback.Name << "\n";
 
-    for (std::vector<Argument>::const_iterator AI = Callback.Arguments.begin(),
-                                               AE = Callback.Arguments.end();
+    for (auto AI = Callback.Arguments.begin(), AE = Callback.Arguments.end();
          AI != AE; ++AI) {
       const Argument &Arg = *AI;
       OS << "  " << Arg.Name << ": " << Arg.Value << "\n";
@@ -216,7 +211,7 @@ int main(int Argc, const char **Argv) {
   } else {
     // Set up output file.
     std::error_code EC;
-    llvm::tool_output_file Out(OutputFileName, EC, llvm::sys::fs::F_Text);
+    llvm::ToolOutputFile Out(OutputFileName, EC, llvm::sys::fs::F_Text);
     if (EC) {
       llvm::errs() << "pp-trace: error creating " << OutputFileName << ":"
                    << EC.message() << "\n";
@@ -225,7 +220,7 @@ int main(int Argc, const char **Argv) {
 
     HadErrors = outputPPTrace(CallbackCalls, Out.os());
 
-    // Tell tool_output_file that we want to keep the file.
+    // Tell ToolOutputFile that we want to keep the file.
     if (HadErrors == 0)
       Out.keep();
   }

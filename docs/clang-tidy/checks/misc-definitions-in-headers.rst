@@ -7,7 +7,7 @@ Finds non-extern non-inline function and variable definitions in header files,
 which can lead to potential ODR violations in case these headers are included
 from multiple translation units.
 
-.. code:: c++
+.. code-block:: c++
 
    // Foo.h
    int a = 1; // Warning: variable definition.
@@ -26,6 +26,7 @@ from multiple translation units.
    static int b = 1;
    const int c = 1;
    const char* const str2 = "foo";
+   constexpr int k = 1;
 
    // Warning: function definition.
    int g() {
@@ -38,9 +39,10 @@ from multiple translation units.
    }
 
    class A {
-    public:
+   public:
      int f1() { return 1; } // OK: implicitly inline member function definition is allowed.
      int f2();
+
      static int d;
    };
 
@@ -72,3 +74,27 @@ from multiple translation units.
    // OK: member function definition of a class template is allowed.
    template <typename T>
    void B<T>::f1() {}
+
+   class CE {
+     constexpr static int i = 5; // OK: inline variable definition.
+   };
+
+   inline int i = 5; // OK: inline variable definition.
+
+   constexpr int f10() { return 0; } // OK: constexpr function implies inline.
+
+Options
+-------
+
+.. option:: HeaderFileExtensions
+
+   A comma-separated list of filename extensions of header files (the filename
+   extensions should not include "." prefix). Default is "h,hh,hpp,hxx".
+   For header files without an extension, use an empty string (if there are no
+   other desired extensions) or leave an empty element in the list. e.g.,
+   "h,hh,hpp,hxx," (note the trailing comma).
+
+.. option:: UseHeaderFileExtension
+
+   When non-zero, the check will use the file extension to distinguish header
+   files. Default is `1`.

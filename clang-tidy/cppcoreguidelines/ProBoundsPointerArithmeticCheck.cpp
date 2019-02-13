@@ -1,9 +1,8 @@
 //===--- ProBoundsPointerArithmeticCheck.cpp - clang-tidy------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,12 +20,16 @@ void ProBoundsPointerArithmeticCheck::registerMatchers(MatchFinder *Finder) {
   if (!getLangOpts().CPlusPlus)
     return;
 
+  const auto AllPointerTypes = anyOf(
+      hasType(pointerType()), hasType(autoType(hasDeducedType(pointerType()))),
+      hasType(decltypeType(hasUnderlyingType(pointerType()))));
+
   // Flag all operators +, -, +=, -=, ++, -- that result in a pointer
   Finder->addMatcher(
       binaryOperator(
           anyOf(hasOperatorName("+"), hasOperatorName("-"),
                 hasOperatorName("+="), hasOperatorName("-=")),
-          hasType(pointerType()),
+          AllPointerTypes,
           unless(hasLHS(ignoringImpCasts(declRefExpr(to(isImplicit()))))))
           .bind("expr"),
       this);
@@ -41,14 +44,14 @@ void ProBoundsPointerArithmeticCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       arraySubscriptExpr(
           hasBase(ignoringImpCasts(
-              anyOf(hasType(pointerType()),
+              anyOf(AllPointerTypes,
                     hasType(decayedType(hasDecayedType(pointerType())))))))
           .bind("expr"),
       this);
 }
 
-void
-ProBoundsPointerArithmeticCheck::check(const MatchFinder::MatchResult &Result) {
+void ProBoundsPointerArithmeticCheck::check(
+    const MatchFinder::MatchResult &Result) {
   const auto *MatchedExpr = Result.Nodes.getNodeAs<Expr>("expr");
 
   diag(MatchedExpr->getExprLoc(), "do not use pointer arithmetic");

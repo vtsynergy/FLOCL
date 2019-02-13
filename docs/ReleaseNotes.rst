@@ -1,30 +1,38 @@
-===================================
-Extra Clang Tools 3.9 Release Notes
-===================================
+Extra Clang Tools 9.0.0 (In-Progress) Release Notes
+===================================================
+>>>>>>> official_clang_tidy/master
 
 .. contents::
    :local:
    :depth: 3
 
-Written by the `LLVM Team <http://llvm.org/>`_
+Written by the `LLVM Team <https://llvm.org/>`_
 
 Introduction
 ============
 
 This document contains the release notes for the Extra Clang Tools, part of the
-Clang release 3.9.  Here we describe the status of the Extra Clang Tools in some
-detail, including major improvements from the previous release and new feature
-work. For the general Clang release notes, see `the Clang documentation
-<http://llvm.org/releases/3.8.0/tools/clang/docs/ReleaseNotes.html>`_.  All LLVM
-releases may be downloaded from the `LLVM releases web
-site <http://llvm.org/releases/>`_.
+Clang release 9.0.0. Here we describe the status of the Extra Clang Tools in
+some detail, including major improvements from the previous release and new
+feature work. All LLVM releases may be downloaded from the `LLVM releases web
+site <https://llvm.org/releases/>`_.
 
 For more information about Clang or LLVM, including information about
-the latest release, please see the `Clang Web Site <http://clang.llvm.org>`_ or
-the `LLVM Web Site <http://llvm.org>`_.
+the latest release, please see the `Clang Web Site <https://clang.llvm.org>`_ or
+the `LLVM Web Site <https://llvm.org>`_.
 
+<<<<<<< HEAD
 What's New in Extra Clang Tools 3.9?
 ====================================
+=======
+Note that if you are reading this file from a Subversion checkout or the
+main Clang web page, this document applies to the *next* release, not
+the current one. To see the release notes for a specific release, please
+see the `releases page <https://llvm.org/releases/>`_.
+
+What's New in Extra Clang Tools 9.0.0?
+======================================
+>>>>>>> official_clang_tidy/master
 
 Some of the major new features and improvements to Extra Clang Tools are listed
 here. Generic improvements to Extra Clang Tools as a whole or to its underlying
@@ -33,145 +41,70 @@ infrastructure are described first, followed by tool-specific sections.
 Major New Features
 ------------------
 
-- :program:`clang-include-fixer`, a tool that provides an automated way of
-  adding ``#include`` directives for missing symbols in one translation unit.
+...
 
+Improvements to clangd
+----------------------
+
+The improvements are...
+
+Improvements to clang-doc
+-------------------------
+
+The improvements are...
+
+<<<<<<< HEAD
   It aims to provide automated insertion of missing ``#includes`` with a single
   button press in an editor. Integration with Vim and a tool to generate the
   symbol index used by the tool are also part of this release. See the
   `include-fixer documentation`_ for more information.
+=======
+Improvements to clang-query
+---------------------------
+
+- ...
+>>>>>>> official_clang_tidy/master
 
 .. _include-fixer documentation: http://clang.llvm.org/extra/include-fixer.html
 
 Improvements to clang-tidy
 --------------------------
 
-:program:`clang-tidy`'s checks are constantly being improved to catch more issues,
-explain them more clearly, and provide more accurate fix-its for the issues
-identified.  The improvements since the 3.8 release include:
+- New :doc:`abseil-duration-addition
+  <clang-tidy/checks/abseil-duration-addition>` check.
 
-- New Boost module containing checks for issues with Boost library.
+  Checks for cases where addition should be performed in the ``absl::Time``
+  domain.
 
-- New `boost-use-to-string 
-  <http://clang.llvm.org/extra/clang-tidy/checks/boost-use-to-string.html>`_ check
+- New :doc:`abseil-duration-conversion-cast
+  <clang-tidy/checks/abseil-duration-conversion-cast>` check.
 
-  Finds usages of ``boost::lexical_cast<std::string>`` and changes it to
-  ``std::to_string``.
+  Checks for casts of ``absl::Duration`` conversion functions, and recommends
+  the right conversion function instead.
 
-- New `cert-env33-c
-  <http://clang.llvm.org/extra/clang-tidy/checks/cert-env33-c.html>`_ check
+- New :doc:`abseil-duration-unnecessary-conversion
+  <clang-tidy/checks/abseil-duration-unnecessary-conversion>` check.
 
-  Flags calls to ``system()``, ``popen()``, and ``_popen()``, which execute a
-  command processor.
+  Finds and fixes cases where ``absl::Duration`` values are being converted to
+  numeric types and back again.
 
-- New `cert-err34-c
-  <http://clang.llvm.org/extra/clang-tidy/checks/cert-err34-c.html>`_ check
+- New :doc:`google-readability-avoid-underscore-in-googletest-name
+  <clang-tidy/checks/google-readability-avoid-underscore-in-googletest-name>`
+  check.
 
-  Flags calls to string-to-number conversion functions that do not verify the
-  validity of the conversion.
+  Checks whether there are underscores in googletest test and test case names in
+  test macros, which is prohibited by the Googletest FAQ.
 
-- New `cert-flp30-c
-  <http://clang.llvm.org/extra/clang-tidy/checks/cert-flp30-c.html>`_ check
+- The :doc:`bugprone-argument-comment
+  <clang-tidy/checks/bugprone-argument-comment>` now supports
+  `CommentBoolLiterals`, `CommentIntegerLiterals`,  `CommentFloatLiterals`,
+  `CommentUserDefiniedLiterals`, `CommentStringLiterals`,
+  `CommentCharacterLiterals` & `CommentNullPtrs` options.
 
-  Flags ``for`` loops where the induction expression has a floating-point type.
+Improvements to include-fixer
+-----------------------------
 
-- New `cppcoreguidelines-interfaces-global-init
-  <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-interfaces-global-init.html>`_ check
-
-  Flags initializers of globals that access extern objects, and therefore can
-  lead to order-of-initialization problems.
-
-- New `cppcoreguidelines-pro-type-member-init
-  <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-pro-type-member-init.html>`_ check
-
-  Flags user-defined constructor definitions that do not initialize all builtin
-  and pointer fields which leaves their memory in an undefined state.
-
-- New `google-default-arguments
-  <http://clang.llvm.org/extra/clang-tidy/checks/google-default-arguments.html>`_ check
-
-  Flags default arguments in virtual methods.
-
-- New `misc-dangling-handle
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-dangling-handle.html>`_ check
-
-  Detects dangling references in value handlers like
-  ``std::experimental::string_view``.
-
-- New `misc-fold-init-type
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-fold-init-type.html>`_ check
-
-  The check flags type mismatches in `folds` like ``std::accumulate`` that might
-  result in loss of precision.
-
-- New `misc-forward-declaration-namespace
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-forward-declaration-namespace.html>`_ check
-
-  Checks if an unused forward declaration is in a wrong namespace.
-
-- New `misc-misplaced-const
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-misplaced-const.html>`_ check
-  
-  Checks if a ``const`` qualifier is applied to a ``typedef`` to pointer type
-  instead of the underlying pointee type.
-
-- New `misc-misplaced-widening-cast
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-misplaced-widening-cast.html>`_ check
-
-  Warns when there is a explicit redundant cast of a calculation result to a
-  bigger type.
-
-- New `misc-multiple-statement-macro
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-multiple-statement-macro.html>`_ check
-
-  Detect multiple statement macros that are used in unbraced conditionals.
-
-- New `misc-pointer-and-integral-operation
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-pointer-and-integral-operation.html>`_ check
-
-  Warns about suspicious operations involving pointers and integral types.
-
-- New `misc-redundant-expression
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-redundant-expression.html>`_ check
-
-  Warns about redundant and equivalent expressions.
-
-- New `misc-sizeof-expression
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-sizeof-expression.html>`_ check
-
-  Warns about incorrect uses of ``sizeof`` operator.
-
-- New `misc-string-constructor
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-string-constructor.html>`_ check
-
-  Finds string constructors that are suspicious and probably errors.
-
-- New `misc-string-literal-with-embedded-nul
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-string-literal-with-embedded-nul.html>`_ check
-
-  Warns about suspicious NUL character in string literals which may lead to
-  truncation or invalid character escaping.
-
-- New `misc-suspicious-missing-comma
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-suspicious-missing-comma.html>`_ check
-
-  Warns about 'probably' missing comma in string literals initializer list.
-
-- New `misc-suspicious-semicolon
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-suspicious-semicolon.html>`_ check
-
-  Finds most instances of stray semicolons that unexpectedly alter the meaning
-  of the code.
-
-- New `misc-suspicious-string-compare
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-suspicious-string-compare.html>`_ check
-
-  Find suspicious usage of runtime string comparison functions.
-
-- New `misc-unconventional-assign-operator
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-unconventional-assign-operator.html>`_
-  check replacing the *misc-assign-operator-signature* check.
-
+<<<<<<< HEAD
   Does not only checks for correct signature but also for correct ``return``
   statements (returning ``*this``)
 
@@ -383,3 +316,11 @@ The 3.8 release didn't include release notes for :program:`clang-tidy`. In the
   2. Value-initialize every non-member instance of a record type needing
      initialization that lacks a user-provided default constructor, e.g.
      a POD.
+=======
+The improvements are...
+
+Improvements to modularize
+--------------------------
+
+The improvements are...
+>>>>>>> official_clang_tidy/master

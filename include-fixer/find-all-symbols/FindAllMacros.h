@@ -1,10 +1,9 @@
 //===-- FindAllMacros.h - find all macros -----------------------*- C++ -*-===//
 //
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +15,7 @@
 #include "clang/Lex/PPCallbacks.h"
 
 namespace clang {
+class MacroInfo;
 namespace find_all_symbols {
 
 class HeaderMapCollector;
@@ -32,7 +32,24 @@ public:
   void MacroDefined(const Token &MacroNameTok,
                     const MacroDirective *MD) override;
 
+  void MacroExpands(const Token &MacroNameTok, const MacroDefinition &MD,
+                    SourceRange Range, const MacroArgs *Args) override;
+
+  void Ifdef(SourceLocation Loc, const Token &MacroNameTok,
+             const MacroDefinition &MD) override;
+
+  void Ifndef(SourceLocation Loc, const Token &MacroNameTok,
+              const MacroDefinition &MD) override;
+
+  void EndOfMainFile() override;
+
 private:
+  llvm::Optional<SymbolInfo> CreateMacroSymbol(const Token &MacroNameTok,
+                                               const MacroInfo *MD);
+  // Not a callback, just a common path for all usage types.
+  void MacroUsed(const Token &Name, const MacroDefinition &MD);
+
+  SymbolInfo::SignalMap FileSymbols;
   // Reporter for SymbolInfo.
   SymbolReporter *const Reporter;
   SourceManager *const SM;

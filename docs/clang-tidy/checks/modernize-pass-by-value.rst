@@ -13,7 +13,7 @@ The transformation is usually beneficial when the calling code passes an
 *rvalue* and assumes the move construction is a cheap operation. This short
 example illustrates how the construction of the value happens:
 
-  .. code-block:: c++
+.. code-block:: c++
 
     void foo(std::string s);
     std::string get_str();
@@ -39,7 +39,7 @@ Since ``std::move()`` is a library function declared in `<utility>` it may be
 necessary to add this include. The check will add the include directive when
 necessary.
 
-  .. code-block:: c++
+.. code-block:: c++
 
      #include <string>
 
@@ -139,15 +139,28 @@ Example:
    public:
  =  // using -fdelayed-template-parsing (default on Windows)
  =  C(const std::string &S) : S(S) {}
- 
+
  +  // using -fno-delayed-template-parsing (default on non-Windows systems)
  +  C(std::string S) : S(std::move(S)) {}
    };
 
-.. _Clang Compiler User’s Manual - Microsoft extensions: http://clang.llvm.org/docs/UsersManual.html#microsoft-extensions
+.. _Clang Compiler User’s Manual - Microsoft extensions: https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions
 
 .. seealso::
 
   For more information about the pass-by-value idiom, read: `Want Speed? Pass by Value`_.
 
-  .. _Want Speed? Pass by Value: http://cpp-next.com/archive/2009/08/want-speed-pass-by-value/
+  .. _Want Speed? Pass by Value: https://web.archive.org/web/20140205194657/http://cpp-next.com/archive/2009/08/want-speed-pass-by-value/
+
+Options
+-------
+
+.. option:: IncludeStyle
+
+   A string specifying which include-style is used, `llvm` or `google`. Default
+   is `llvm`.
+
+.. option:: ValuesOnly
+
+   When non-zero, the check only warns about copied parameters that are already
+   passed by value. Default is `0`.

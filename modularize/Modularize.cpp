@@ -1,9 +1,8 @@
 //===- extra/modularize/Modularize.cpp - Check modularized headers --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -341,9 +340,7 @@ static std::string findInputFile(const CommandLineArguments &CLArgs) {
   const unsigned IncludedFlagsBitmask = options::CC1Option;
   unsigned MissingArgIndex, MissingArgCount;
   SmallVector<const char *, 256> Argv;
-  for (CommandLineArguments::const_iterator I = CLArgs.begin(),
-                                            E = CLArgs.end();
-       I != E; ++I)
+  for (auto I = CLArgs.begin(), E = CLArgs.end(); I != E; ++I)
     Argv.push_back(I->c_str());
   InputArgList Args = Opts->ParseArgs(Argv, MissingArgIndex, MissingArgCount,
                                       IncludedFlagsBitmask);
@@ -571,7 +568,10 @@ public:
     return true;
   }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) { return true; }
-  bool TraverseLambdaCapture(LambdaCapture C) { return true; }
+  bool TraverseLambdaCapture(LambdaExpr *LE, const LambdaCapture *C,
+                             Expr *Init) {
+    return true;
+  }
 
   // Check 'extern "*" {}' block for #include directives.
   bool VisitLinkageSpecDecl(LinkageSpecDecl *D) {
@@ -756,7 +756,10 @@ public:
     return true;
   }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) { return true; }
-  bool TraverseLambdaCapture(LambdaCapture C) { return true; }
+  bool TraverseLambdaCapture(LambdaExpr *LE, const LambdaCapture *C,
+                             Expr *Init) {
+    return true;
+  }
 
   // Check 'extern "*" {}' block for #include directives.
   bool VisitLinkageSpecDecl(LinkageSpecDecl *D) {

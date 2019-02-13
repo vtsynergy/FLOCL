@@ -1,9 +1,8 @@
 //===--- HeaderFileExtensionsUtils.h - clang-tidy----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,8 +11,8 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace clang {
 namespace tidy {
@@ -36,10 +35,18 @@ bool isSpellingLocInHeaderFile(
     SourceLocation Loc, SourceManager &SM,
     const HeaderFileExtensionsSet &HeaderFileExtensions);
 
+/// \brief Returns recommended default value for the list of header file
+/// extensions.
+inline StringRef defaultHeaderFileExtensions() { return ",h,hh,hpp,hxx"; }
+
 /// \brief Parses header file extensions from a semicolon-separated list.
 bool parseHeaderFileExtensions(StringRef AllHeaderFileExtensions,
                                HeaderFileExtensionsSet &HeaderFileExtensions,
                                char delimiter);
+
+/// \brief Decides whether a file has a header file extension.
+bool isHeaderFileExtension(StringRef FileName,
+                           const HeaderFileExtensionsSet &HeaderFileExtensions);
 
 } // namespace utils
 } // namespace tidy

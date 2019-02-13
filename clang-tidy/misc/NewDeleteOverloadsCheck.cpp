@@ -1,9 +1,8 @@
 //===--- NewDeleteOverloadsCheck.cpp - clang-tidy--------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -64,7 +63,8 @@ AST_MATCHER(FunctionDecl, isPlacementOverload) {
 
 OverloadedOperatorKind getCorrespondingOverload(const FunctionDecl *FD) {
   switch (FD->getOverloadedOperator()) {
-  default: break;
+  default:
+    break;
   case OO_New:
     return OO_Delete;
   case OO_Delete:
@@ -79,7 +79,8 @@ OverloadedOperatorKind getCorrespondingOverload(const FunctionDecl *FD) {
 
 const char *getOperatorName(OverloadedOperatorKind K) {
   switch (K) {
-  default: break;
+  default:
+    break;
   case OO_New:
     return "operator new";
   case OO_Delete:
@@ -140,13 +141,12 @@ void NewDeleteOverloadsCheck::registerMatchers(MatchFinder *Finder) {
   // However, I think it's more reasonable to warn in this case as the user
   // should really be writing that as a deleted function.
   Finder->addMatcher(
-      functionDecl(
-          unless(anyOf(isImplicit(), isPlacementOverload(), isDeleted(),
-                       cxxMethodDecl(isPrivate()))),
-          anyOf(hasOverloadedOperatorName("new"),
-                hasOverloadedOperatorName("new[]"),
-                hasOverloadedOperatorName("delete"),
-                hasOverloadedOperatorName("delete[]")))
+      functionDecl(unless(anyOf(isImplicit(), isPlacementOverload(),
+                                isDeleted(), cxxMethodDecl(isPrivate()))),
+                   anyOf(hasOverloadedOperatorName("new"),
+                         hasOverloadedOperatorName("new[]"),
+                         hasOverloadedOperatorName("delete"),
+                         hasOverloadedOperatorName("delete[]")))
           .bind("func"),
       this);
 }

@@ -1,9 +1,8 @@
 //===-- ApplyReplacements.cpp - Apply and deduplicate replacements --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -20,6 +19,7 @@
 #include "clang/Format/Format.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Rewrite/Core/Rewriter.h"
+#include "clang/Tooling/DiagnosticsYaml.h"
 #include "clang/Tooling/ReplacementsYaml.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FileSystem.h"
@@ -30,17 +30,14 @@
 using namespace llvm;
 using namespace clang;
 
-
 static void eatDiagnostics(const SMDiagnostic &, void *) {}
 
 namespace clang {
 namespace replace {
 
-std::error_code
-collectReplacementsFromDirectory(const llvm::StringRef Directory,
-                                 TUReplacements &TUs,
-                                 TUReplacementFiles & TURFiles,
-                                 clang::DiagnosticsEngine &Diagnostics) {
+std::error_code collectReplacementsFromDirectory(
+    const llvm::StringRef Directory, TUReplacements &TUs,
+    TUReplacementFiles &TUFiles, clang::DiagnosticsEngine &Diagnostics) {
   using namespace llvm::sys::fs;
   using namespace llvm::sys::path;
 
@@ -57,7 +54,7 @@ collectReplacementsFromDirectory(const llvm::StringRef Directory,
     if (extension(I->path()) != ".yaml")
       continue;
 
-    TURFiles.push_back(I->path());
+    TUFiles.push_back(I->path());
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> Out =
         MemoryBuffer::getFile(I->path());
@@ -82,162 +79,164 @@ collectReplacementsFromDirectory(const llvm::StringRef Directory,
   return ErrorCode;
 }
 
-/// \brief Dumps information for a sequence of conflicting Replacements.
-///
-/// \param[in] File FileEntry for the file the conflicting Replacements are
-/// for.
-/// \param[in] ConflictingReplacements List of conflicting Replacements.
-/// \param[in] SM SourceManager used for reporting.
-static void reportConflict(
-    const FileEntry *File,
-    const llvm::ArrayRef<clang::tooling::Replacement> ConflictingReplacements,
-    SourceManager &SM) {
-  FileID FID = SM.translateFile(File);
-  if (FID.isInvalid())
-    FID = SM.createFileID(File, SourceLocation(), SrcMgr::C_User);
+std::error_code collectReplacementsFromDirectory(
+    const llvm::StringRef Directory, TUDiagnostics &TUs,
+    TUReplacementFiles &TUFiles, clang::DiagnosticsEngine &Diagnostics) {
+  using namespace llvm::sys::fs;
+  using namespace llvm::sys::path;
 
-  // FIXME: Output something a little more user-friendly (e.g. unified diff?)
-  errs() << "The following changes conflict:\n";
-  for (const tooling::Replacement &R : ConflictingReplacements) {
-    if (R.getLength() == 0) {
-      errs() << "  Insert at " << SM.getLineNumber(FID, R.getOffset()) << ":"
-             << SM.getColumnNumber(FID, R.getOffset()) << " "
-             << R.getReplacementText() << "\n";
-    } else {
-      if (R.getReplacementText().empty())
-        errs() << "  Remove ";
-      else
-        errs() << "  Replace ";
+  std::error_code ErrorCode;
 
-      errs() << SM.getLineNumber(FID, R.getOffset()) << ":"
-             << SM.getColumnNumber(FID, R.getOffset()) << "-"
-             << SM.getLineNumber(FID, R.getOffset() + R.getLength() - 1) << ":"
-             << SM.getColumnNumber(FID, R.getOffset() + R.getLength() - 1);
-
-      if (R.getReplacementText().empty())
-        errs() << "\n";
-      else
-        errs() << " with \"" << R.getReplacementText() << "\"\n";
+  for (recursive_directory_iterator I(Directory, ErrorCode), E;
+       I != E && !ErrorCode; I.increment(ErrorCode)) {
+    if (filename(I->path())[0] == '.') {
+      // Indicate not to descend into directories beginning with '.'
+      I.no_push();
+      continue;
     }
-  }
-}
 
-/// \brief Deduplicates and tests for conflicts among the replacements for each
-/// file in \c Replacements. Any conflicts found are reported.
-///
-/// \post Replacements[i].getOffset() <= Replacements[i+1].getOffset().
-///
-/// \param[in,out] Replacements Container of all replacements grouped by file
-/// to be deduplicated and checked for conflicts.
-/// \param[in] SM SourceManager required for conflict reporting.
-///
-/// \returns \parblock
-///          \li true if conflicts were detected
-///          \li false if no conflicts were detected
-static bool deduplicateAndDetectConflicts(FileToReplacementsMap &Replacements,
-                                          SourceManager &SM) {
-  bool conflictsFound = false;
-
-  for (auto &FileAndReplacements : Replacements) {
-    const FileEntry *Entry = FileAndReplacements.first;
-    auto &Replacements = FileAndReplacements.second;
-    assert(Entry != nullptr && "No file entry!");
-
-    std::vector<tooling::Range> Conflicts;
-    tooling::deduplicate(FileAndReplacements.second, Conflicts);
-
-    if (Conflicts.empty())
+    if (extension(I->path()) != ".yaml")
       continue;
 
-    conflictsFound = true;
+    TUFiles.push_back(I->path());
 
-    errs() << "There are conflicting changes to " << Entry->getName() << ":\n";
-
-    for (const tooling::Range &Conflict : Conflicts) {
-      auto ConflictingReplacements = llvm::makeArrayRef(
-          &Replacements[Conflict.getOffset()], Conflict.getLength());
-      reportConflict(Entry, ConflictingReplacements, SM);
+    ErrorOr<std::unique_ptr<MemoryBuffer>> Out =
+        MemoryBuffer::getFile(I->path());
+    if (std::error_code BufferError = Out.getError()) {
+      errs() << "Error reading " << I->path() << ": " << BufferError.message()
+             << "\n";
+      continue;
     }
+
+    yaml::Input YIn(Out.get()->getBuffer(), nullptr, &eatDiagnostics);
+    tooling::TranslationUnitDiagnostics TU;
+    YIn >> TU;
+    if (YIn.error()) {
+      // File doesn't appear to be a header change description. Ignore it.
+      continue;
+    }
+
+    // Only keep files that properly parse.
+    TUs.push_back(TU);
   }
 
-  return conflictsFound;
+  return ErrorCode;
 }
 
-bool mergeAndDeduplicate(const TUReplacements &TUs,
-                         FileToReplacementsMap &GroupedReplacements,
-                         clang::SourceManager &SM) {
-
-  // Group all replacements by target file.
+/// \brief Extract replacements from collected TranslationUnitReplacements and
+/// TranslationUnitDiagnostics and group them per file. Identical replacements
+/// from diagnostics are deduplicated.
+///
+/// \param[in] TUs Collection of all found and deserialized
+/// TranslationUnitReplacements.
+/// \param[in] TUDs Collection of all found and deserialized
+/// TranslationUnitDiagnostics.
+/// \param[in] SM Used to deduplicate paths.
+///
+/// \returns A map mapping FileEntry to a set of Replacement targeting that
+/// file.
+static llvm::DenseMap<const FileEntry *, std::vector<tooling::Replacement>>
+groupReplacements(const TUReplacements &TUs, const TUDiagnostics &TUDs,
+                  const clang::SourceManager &SM) {
   std::set<StringRef> Warned;
-  for (const auto &TU : TUs) {
-    for (const tooling::Replacement &R : TU.Replacements) {
-      // Use the file manager to deduplicate paths. FileEntries are
-      // automatically canonicalized.
-      const FileEntry *Entry = SM.getFileManager().getFile(R.getFilePath());
-      if (!Entry && Warned.insert(R.getFilePath()).second) {
-        errs() << "Described file '" << R.getFilePath()
-               << "' doesn't exist. Ignoring...\n";
-        continue;
+  llvm::DenseMap<const FileEntry *, std::vector<tooling::Replacement>>
+      GroupedReplacements;
+
+  // Deduplicate identical replacements in diagnostics.
+  // FIXME: Find an efficient way to deduplicate on diagnostics level.
+  llvm::DenseMap<const FileEntry *, std::set<tooling::Replacement>>
+      DiagReplacements;
+
+  auto AddToGroup = [&](const tooling::Replacement &R, bool FromDiag) {
+    // Use the file manager to deduplicate paths. FileEntries are
+    // automatically canonicalized.
+    if (const FileEntry *Entry = SM.getFileManager().getFile(R.getFilePath())) {
+      if (FromDiag) {
+        auto &Replaces = DiagReplacements[Entry];
+        if (!Replaces.insert(R).second)
+          return;
       }
       GroupedReplacements[Entry].push_back(R);
+    } else if (Warned.insert(R.getFilePath()).second) {
+      errs() << "Described file '" << R.getFilePath()
+             << "' doesn't exist. Ignoring...\n";
     }
+  };
+
+  for (const auto &TU : TUs)
+    for (const tooling::Replacement &R : TU.Replacements)
+      AddToGroup(R, false);
+
+  for (const auto &TU : TUDs)
+    for (const auto &D : TU.Diagnostics)
+      for (const auto &Fix : D.Fix)
+        for (const tooling::Replacement &R : Fix.second)
+          AddToGroup(R, true);
+
+  // Sort replacements per file to keep consistent behavior when
+  // clang-apply-replacements run on differents machine.
+  for (auto &FileAndReplacements : GroupedReplacements) {
+    llvm::sort(FileAndReplacements.second.begin(),
+               FileAndReplacements.second.end());
   }
 
-  // Ask clang to deduplicate and report conflicts.
-  return !deduplicateAndDetectConflicts(GroupedReplacements, SM);
+  return GroupedReplacements;
 }
 
-bool applyReplacements(const FileToReplacementsMap &GroupedReplacements,
-                       clang::Rewriter &Rewrites) {
+bool mergeAndDeduplicate(const TUReplacements &TUs, const TUDiagnostics &TUDs,
+                         FileToChangesMap &FileChanges,
+                         clang::SourceManager &SM) {
+  auto GroupedReplacements = groupReplacements(TUs, TUDs, SM);
+  bool ConflictDetected = false;
 
-  // Apply all changes
-  //
-  // FIXME: No longer certain GroupedReplacements is really the best kind of
-  // data structure for applying replacements. Rewriter certainly doesn't care.
-  // However, until we nail down the design of ReplacementGroups, might as well
-  // leave this as is.
+  // To report conflicting replacements on corresponding file, all replacements
+  // are stored into 1 big AtomicChange.
   for (const auto &FileAndReplacements : GroupedReplacements) {
-    if (!tooling::applyAllReplacements(FileAndReplacements.second, Rewrites))
-      return false;
-  }
-
-  return true;
-}
-
-RangeVector calculateChangedRanges(
-    const std::vector<clang::tooling::Replacement> &Replaces) {
-  RangeVector ChangedRanges;
-
-  // Generate the new ranges from the replacements.
-  int Shift = 0;
-  for (const tooling::Replacement &R : Replaces) {
-    unsigned Offset = R.getOffset() + Shift;
-    unsigned Length = R.getReplacementText().size();
-    Shift += Length - R.getLength();
-    ChangedRanges.push_back(tooling::Range(Offset, Length));
-  }
-
-  return ChangedRanges;
-}
-
-bool writeFiles(const clang::Rewriter &Rewrites) {
-
-  for (Rewriter::const_buffer_iterator BufferI = Rewrites.buffer_begin(),
-                                       BufferE = Rewrites.buffer_end();
-       BufferI != BufferE; ++BufferI) {
-    const char *FileName =
-        Rewrites.getSourceMgr().getFileEntryForID(BufferI->first)->getName();
-
-    std::error_code EC;
-    llvm::raw_fd_ostream FileStream(FileName, EC, llvm::sys::fs::F_Text);
-    if (EC) {
-      errs() << "Warning: Could not write to " << EC.message() << "\n";
-      continue;
+    const FileEntry *Entry = FileAndReplacements.first;
+    const SourceLocation BeginLoc =
+        SM.getLocForStartOfFile(SM.getOrCreateFileID(Entry, SrcMgr::C_User));
+    tooling::AtomicChange FileChange(Entry->getName(), Entry->getName());
+    for (const auto &R : FileAndReplacements.second) {
+      llvm::Error Err =
+          FileChange.replace(SM, BeginLoc.getLocWithOffset(R.getOffset()),
+                             R.getLength(), R.getReplacementText());
+      if (Err) {
+        // FIXME: This will report conflicts by pair using a file+offset format
+        // which is not so much human readable.
+        // A first improvement could be to translate offset to line+col. For
+        // this and without loosing error message some modifications arround
+        // `tooling::ReplacementError` are need (access to
+        // `getReplacementErrString`).
+        // A better strategy could be to add a pretty printer methods for
+        // conflict reporting. Methods that could be parameterized to report a
+        // conflict in different format, file+offset, file+line+col, or even
+        // more human readable using VCS conflict markers.
+        // For now, printing directly the error reported by `AtomicChange` is
+        // the easiest solution.
+        errs() << llvm::toString(std::move(Err)) << "\n";
+        ConflictDetected = true;
+      }
     }
-    BufferI->second.write(FileStream);
+    FileChanges.try_emplace(Entry,
+                            std::vector<tooling::AtomicChange>{FileChange});
   }
 
-  return true;
+  return !ConflictDetected;
+}
+
+llvm::Expected<std::string>
+applyChanges(StringRef File, const std::vector<tooling::AtomicChange> &Changes,
+             const tooling::ApplyChangesSpec &Spec,
+             DiagnosticsEngine &Diagnostics) {
+  FileManager Files((FileSystemOptions()));
+  SourceManager SM(Diagnostics, Files);
+
+  llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> Buffer =
+      SM.getFileManager().getBufferForFile(File);
+  if (!Buffer)
+    return errorCodeToError(Buffer.getError());
+  return tooling::applyAtomicChanges(File, Buffer.get()->getBuffer(), Changes,
+                                     Spec);
 }
 
 bool deleteReplacementFiles(const TUReplacementFiles &Files,
