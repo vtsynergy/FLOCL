@@ -481,7 +481,6 @@ static int clangTidyMain(int argc, const char **argv) {
   return 0;
 }
 
-/** If nothing breaks after this is taken out, then this is safe to delete
 // This anchor is used to force the linker to link the OpenCLModule
 extern volatile int OpenCLModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED OpenCLModuleAnchorDestination =
@@ -491,7 +490,6 @@ static int LLVM_ATTRIBUTE_UNUSED OpenCLModuleAnchorDestination =
 extern volatile int FPGAModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED FPGAModuleAnchorDestination =
     FPGAModuleAnchorSource;
-*/
 
 } // namespace tidy
 } // namespace clang
