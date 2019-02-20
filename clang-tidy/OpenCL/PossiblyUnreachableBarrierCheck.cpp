@@ -254,9 +254,9 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
       }
     }
   } else if (Statement) {
-//	diag(Statement->getLocStart(), "assignment of unknown thread-dependent variable");
+//	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent variable");
   } else if (Variable) {
-//	diag(Variable->getLocStart(), "variable seems thread dependent, but can't figure out statement");
+//	diag(Variable->getBeginLoc(), "variable seems thread dependent, but can't figure out statement");
   } else if (Field) {
 	//TODO diag
   }
@@ -424,7 +424,7 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
 		  }
 		} else {
 		  //What are we calling? diag and abort
-		  diag(call->getLocStart(), "Cannot deduce type of call in if/else, flagging switch for potentially unreachable barrier");
+		  diag(call->getBeginLoc(), "Cannot deduce type of call in if/else, flagging switch for potentially unreachable barrier");
 		  //call->dump();
 		  break;
 		}
@@ -448,7 +448,7 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
 		} 
 	      }
 	      if (!isOuterIf) {
-	        diag((*itr)->getLocStart(), "Cannot guarantee barrier due to nested branch or jump");
+	        diag((*itr)->getBeginLoc(), "Cannot guarantee barrier due to nested branch or jump");
 	        break;
 	      }
 	    }
@@ -547,14 +547,14 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
 		  }
 		} else {
 		  //What are we calling? diag and abort
-		  diag(call->getLocStart(), "Cannot deduce type of call in switch case, flagging switch for potentially unreachable barrier");
+		  diag(call->getBeginLoc(), "Cannot deduce type of call in switch case, flagging switch for potentially unreachable barrier");
 		  //call->dump();
 		  break;
 		}
 	    }
 	    //If we hit any branches, break
 	    if (isa<IfStmt>(*itr) || isa<SwitchStmt>(*itr) || isa<ForStmt>(*itr) || isa<DoStmt>(*itr) || isa<WhileStmt>(*itr) || isa<ReturnStmt>(*itr) || isa<GotoStmt>(*itr)) {
-	      diag((*itr)->getLocStart(), "Cannot guarantee barrier due to nested branch or jump");
+	      diag((*itr)->getBeginLoc(), "Cannot guarantee barrier due to nested branch or jump");
 	      break;
 	    }
 	    //If we hit any gotos, returns or other jumps, break
@@ -563,30 +563,30 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
 	break;
 
 	default:
-	  diag(CondExpr->getLocStart(), "Conditional in undiagnosable branch type, cannot check for barriers");
+	  diag(CondExpr->getBeginLoc(), "Conditional in undiagnosable branch type, cannot check for barriers");
 	break;
     }
     //If there's a get_global/local_id call
     if (IDCall) {
       //It calls one of the ID functions directly
-      diag(BarrierCall->getLocStart(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to ID function call in condition at %1")
+      diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to ID function call in condition at %1")
 	<< type
-	<< CondExpr->getLocStart().printToString(ResultSM);
+	<< CondExpr->getBeginLoc().printToString(ResultSM);
     } else {
       //It has some DeclRefExpr(s), check for ID-dependency
       const auto * retDeclExpr = hasIDDepDeclRef(CondExpr);
       const auto * retMemberExpr = hasIDDepMember(CondExpr);
       if (retDeclExpr) {
         //It has an ID-dependent reference
-        diag(BarrierCall->getLocStart(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent variable %2 in condition at %1")
+        diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent variable %2 in condition at %1")
 		<< type
-		<< CondExpr->getLocStart().printToString(ResultSM)
+		<< CondExpr->getBeginLoc().printToString(ResultSM)
 		<< retDeclExpr->getDecl();
       } else if (retMemberExpr) {
         //It has an ID-dependent reference
-        diag(BarrierCall->getLocStart(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent member %2 in condition at %1")
+        diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent member %2 in condition at %1")
 		<< type
-		<< CondExpr->getLocStart().printToString(ResultSM)
+		<< CondExpr->getBeginLoc().printToString(ResultSM)
 		<< retMemberExpr->getMemberDecl();
       } else {
         //Do nothing, there's nothing wrong with a non-ID-dependent conditional expression
