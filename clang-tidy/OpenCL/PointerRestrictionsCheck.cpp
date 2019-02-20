@@ -19,7 +19,7 @@ namespace OpenCL {
 
 //Implement a matcher to check whether a variable is in a specific address space
 AST_MATCHER_P(QualType, hasAddrSpace, unsigned int, addrSpace) {
-     return (Node.getAddressSpace() == addrSpace);
+     return ((unsigned)Node.getAddressSpace() == addrSpace);
 }
 
 void PointerRestrictionsCheck::registerMatchers(MatchFinder *Finder) {
@@ -33,9 +33,9 @@ void PointerRestrictionsCheck::registerMatchers(MatchFinder *Finder) {
       ),
       hasType(isAnyPointer()),
       unless(anyOf(
-        hasType(pointsTo(hasAddrSpace(LangAS::opencl_global))),
-        hasType(pointsTo(hasAddrSpace(LangAS::opencl_constant))),
-        hasType(pointsTo(hasAddrSpace(LangAS::opencl_local)))
+        hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_global))),
+        hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_constant))),
+        hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_local)))
       ))
     )).bind("ptr_param_addrspace"), this);
   // An OR of all the binary operators which perform an assignment
@@ -56,9 +56,9 @@ void PointerRestrictionsCheck::registerMatchers(MatchFinder *Finder) {
   const auto ADDRSPACE_RHS = expr(hasDescendant(declRefExpr(allOf(
         hasType(isAnyPointer()),
         anyOf(
-          hasType(pointsTo(hasAddrSpace(LangAS::opencl_global))),
-          hasType(pointsTo(hasAddrSpace(LangAS::opencl_constant))),
-          hasType(pointsTo(hasAddrSpace(LangAS::opencl_local)))
+          hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_global))),
+          hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_constant))),
+          hasType(pointsTo(hasAddrSpace((unsigned)LangAS::opencl_local)))
         ),
         unless(hasType(pointsTo(isAnyPointer())))
       )).bind("ptr_assign_RHS")));
@@ -124,7 +124,7 @@ void PointerRestrictionsCheck::check(const MatchFinder::MatchResult &Result) {
         if (PtrAssignLHS->getType().getAddressSpace() == LangAS::opencl_global ) {
           break;
         }
-        diag(PtrAssignOper->getLocStart(), "Pointers in OpenCL global address space can only be assigned to pointer variables in the OpenCL global address space (or generic address space with OpenCL >= 2.0).");
+        diag(PtrAssignOper->getBeginLoc(), "Pointers in OpenCL global address space can only be assigned to pointer variables in the OpenCL global address space (or generic address space with OpenCL >= 2.0).");
         break;
       case LangAS::opencl_local:
         if (Result.Context->getLangOpts().OpenCLVersion >= 200 && PtrAssignLHS->getType().getAddressSpace() == LangAS::opencl_generic ) {
@@ -133,11 +133,11 @@ void PointerRestrictionsCheck::check(const MatchFinder::MatchResult &Result) {
         if (PtrAssignLHS->getType().getAddressSpace() == LangAS::opencl_local ) {
           break;
         }
-        diag(PtrAssignOper->getLocStart(), "Pointers in OpenCL local address space can only be assigned to pointer variables in the OpenCL local address space (or generic address space with OpenCL >= 2.0).");
+        diag(PtrAssignOper->getBeginLoc(), "Pointers in OpenCL local address space can only be assigned to pointer variables in the OpenCL local address space (or generic address space with OpenCL >= 2.0).");
         break;
       case LangAS::opencl_constant:
         if (PtrAssignLHS->getType().getAddressSpace() != LangAS::opencl_constant) {
-          diag(PtrAssignOper->getLocStart(), "Pointers in OpenCL constant address space can only be assigned to pointer variables also in the OpenCL constant address space.");
+          diag(PtrAssignOper->getBeginLoc(), "Pointers in OpenCL constant address space can only be assigned to pointer variables also in the OpenCL constant address space.");
         }
         break;
     }
