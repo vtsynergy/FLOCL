@@ -51,11 +51,11 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
   if (aoc_version < 1701) {
     diag(MatchedDecl->getLocation(), "Kernel function %0 does not call get_global_id or get_local_id and will be treated as single-work-item.\nBarrier call at %1 may error out")
       << MatchedDecl
-      << MatchedBarrier->getLocStart().printToString(Result.Context->getSourceManager());
+      << MatchedBarrier->getBeginLoc().printToString(Result.Context->getSourceManager());
   } else {
     diag(MatchedDecl->getLocation(), "Kernel function %0 does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at %1 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient.")
       << MatchedDecl
-      << MatchedBarrier->getLocStart().printToString(Result.Context->getSourceManager());
+      << MatchedBarrier->getBeginLoc().printToString(Result.Context->getSourceManager());
 
   }
 }
