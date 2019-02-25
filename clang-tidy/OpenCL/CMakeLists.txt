@@ -2,7 +2,6 @@ set(LLVM_LINK_COMPONENTS support)
 
 add_clang_library(clangTidyOpenCLModule
   OpenCLTidyModule.cpp
-  PointerRestrictionsCheck.cpp
   PossiblyUnreachableBarrierCheck.cpp
   
   LINK_LIBS

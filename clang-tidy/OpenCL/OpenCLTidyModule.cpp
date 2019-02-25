@@ -10,7 +10,6 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
-#include "PointerRestrictionsCheck.h"
 #include "PossiblyUnreachableBarrierCheck.h"
 
 
@@ -23,8 +22,6 @@ namespace OpenCL {
 class OpenCLModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<PointerRestrictionsCheck>(
-        "OpenCL-pointer-restrictions");
     CheckFactories.registerCheck<PossiblyUnreachableBarrierCheck>(
         "OpenCL-possibly-unreachable-barrier");
   }
