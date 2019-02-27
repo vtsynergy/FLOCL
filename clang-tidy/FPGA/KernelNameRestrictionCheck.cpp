@@ -30,9 +30,9 @@ void KernelNameRestrictionCheck::check(const MatchFinder::MatchResult &Result) {
     SrcManager.getFileID(
       MatchedDecl->getBeginLoc()));
   StringRef FileName = Entry->getName();
-  if (FileName.endswith_lower("/kernel.cl")) {
+  if (FileName.endswith_lower("/kernel.cl") || FileName.endswith_lower("/verilog.cl") || FileName.endswith_lower("/vhdl.cl")) {
     diag(SrcManager.translateLineCol(SrcManager.getFileID(MatchedDecl->getBeginLoc()),1,1),
-       "Naming your OpenCL kernel source file \"kernel.cl\" could cause compilation errors.");
+       "Naming your OpenCL kernel source file \"kernel.cl\", \"Verilog.cl\", or \"VHDL.cl\" could cause compilation errors.");
     // diag(MatchedDecl->getLocation(), "Naming your OpenCL kernel source file \"kernel.cl\" could cause compilation errors.");
   }
 }
