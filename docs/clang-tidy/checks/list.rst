@@ -5,7 +5,7 @@ Clang-Tidy Checks
 
 .. toctree::
    FPGA-ID-dependent-backward-branch
-   FPGA-single-work-item-barrier
+   FPGA-kernel-name-restriction
    FPGA-struct-pack-align
    OpenCL-pointer-restrictions
    OpenCL-possibly-unreachable-barrier
