@@ -70,7 +70,8 @@ Improvements to clang-tidy
 - New :doc:`FPGA-kernel-name-restriction
   <clang-tidy/checks/FPGA-kernel-name-restriction>` check.
 
-  Checks for cases where the kernel source file is named "kernel.cl".
+  Checks for cases where the kernel source file is named "kernel.cl",
+  "Verilog.cl", or "VHDL.cl".
 
 - New :doc:`abseil-duration-addition
   <clang-tidy/checks/abseil-duration-addition>` check.
