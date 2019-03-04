@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "KernelNameRestrictionCheck.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 
 using namespace clang::ast_matchers;
 
@@ -16,24 +17,83 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
-void KernelNameRestrictionCheck::registerMatchers(MatchFinder *Finder) {
-  // TranslationUnitDecl is the root of all ASTs
-  Finder->addMatcher(functionDecl().bind("function"), this);
+namespace {
+class KernelNameRestrictionPPCallbacks : public PPCallbacks {
+public:
+  explicit KernelNameRestrictionPPCallbacks(ClangTidyCheck &Check, SourceManager &SM)
+      : LookForMainModule(true), Check(Check), SM(SM) {}
+  
+  void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
+                          StringRef FileName, bool IsAngled,
+                          CharSourceRange FileNameRange, const FileEntry *File,
+                          StringRef SearchPath, StringRef RelativePath,
+                          const Module *Imported,
+                          SrcMgr::CharacteristicKind FileType) override;
+
+  void EndOfMainFile() override;
+
+private:
+  struct IncludeDirective {
+    SourceLocation Loc;    ///< '#' Location in the include directive
+    CharSourceRange Range; ///< SourceRange for the file name
+    std::string Filename;  ///< Filename as a string
+    bool IsAngled;         ///< true if this was an include with angle brackets
+    bool IsMainModule;     ///< true if this was the first include in a file
+  };
+  std::vector<IncludeDirective> IncludeDirectives;
+  bool LookForMainModule;
+
+  ClangTidyCheck &Check;
+  SourceManager &SM; 
+};
+} // namespace
+
+void KernelNameRestrictionCheck::registerPPCallbacks(CompilerInstance &Compiler) {
+  Compiler.getPreprocessor().addPPCallbacks(
+      ::llvm::make_unique<KernelNameRestrictionPPCallbacks>(
+          *this, Compiler.getSourceManager()));
 }
 
-void KernelNameRestrictionCheck::check(const MatchFinder::MatchResult &Result) {
-  // StackOverflow example: https://stackoverflow.com/a/25079453/5760608
-  const Decl *MatchedDecl = Result.Nodes.getNodeAs<Decl>("function");
-  ASTContext &Context = MatchedDecl->getASTContext();
-  const SourceManager &SrcManager = Context.getSourceManager();
-  const FileEntry *Entry = SrcManager.getFileEntryForID(
-    SrcManager.getFileID(
-      MatchedDecl->getBeginLoc()));
+void KernelNameRestrictionPPCallbacks::InclusionDirective(
+    SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
+    bool IsAngled, CharSourceRange FilenameRange, const FileEntry *File,
+    StringRef SearchPath, StringRef RelativePath, const Module *Imported,
+    SrcMgr::CharacteristicKind FileType) {
+  // We recognize the first include as a special main module header and want
+  // to leave it in the top position.
+  IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};
+  if (LookForMainModule && !IsAngled) {
+    ID.IsMainModule = true;
+    LookForMainModule = false;
+  }
+  IncludeDirectives.push_back(std::move(ID));
+}
+
+void KernelNameRestrictionPPCallbacks::EndOfMainFile() {
+  LookForMainModule = true;
+  if (IncludeDirectives.empty())
+    return;
+
+  // Check included files for restricted names
+  for (unsigned I = 0; I < IncludeDirectives.size(); ++I) {
+    IncludeDirective &ID = IncludeDirectives[I];
+    StringRef FileName = StringRef(ID.Filename);
+    if (FileName.endswith_lower("/kernel.cl") || 
+        FileName.endswith_lower("/verilog.cl") || 
+        FileName.endswith_lower("/vhdl.cl")) {
+      Check.diag(ID.Loc, "The imported kernel source file is named \"kernel.cl\","
+          "\"Verilog.cl\", or \"VHDL.cl\", which could cause compile errors.");
+    }
+  }
+
+  // Check main file for restricted names
+  const FileEntry *Entry = SM.getFileEntryForID(SM.getMainFileID());
   StringRef FileName = Entry->getName();
-  if (FileName.endswith_lower("/kernel.cl") || FileName.endswith_lower("/verilog.cl") || FileName.endswith_lower("/vhdl.cl")) {
-    diag(SrcManager.translateLineCol(SrcManager.getFileID(MatchedDecl->getBeginLoc()),1,1),
-       "Naming your OpenCL kernel source file \"kernel.cl\", \"Verilog.cl\", or \"VHDL.cl\" could cause compilation errors.");
-    // diag(MatchedDecl->getLocation(), "Naming your OpenCL kernel source file \"kernel.cl\" could cause compilation errors.");
+  if (FileName.endswith_lower("/kernel.cl") || 
+      FileName.endswith_lower("/verilog.cl") || 
+      FileName.endswith_lower("/vhdl.cl")) {
+    Check.diag(SM.getLocForStartOfFile(SM.getMainFileID()),
+        "Naming your OpenCL kernel source file \"kernel.cl\", \"Verilog.cl\", or \"VHDL.cl\" could cause compilation errors.");
   }
 }
 
