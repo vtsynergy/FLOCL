@@ -21,7 +21,7 @@ namespace {
 class KernelNameRestrictionPPCallbacks : public PPCallbacks {
 public:
   explicit KernelNameRestrictionPPCallbacks(ClangTidyCheck &Check, SourceManager &SM)
-      : LookForMainModule(true), Check(Check), SM(SM) {}
+      : Check(Check), SM(SM) {}
   
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
@@ -35,13 +35,9 @@ public:
 private:
   struct IncludeDirective {
     SourceLocation Loc;    ///< '#' Location in the include directive
-    CharSourceRange Range; ///< SourceRange for the file name
     std::string Filename;  ///< Filename as a string
-    bool IsAngled;         ///< true if this was an include with angle brackets
-    bool IsMainModule;     ///< true if this was the first include in a file
   };
   std::vector<IncludeDirective> IncludeDirectives;
-  bool LookForMainModule;
 
   ClangTidyCheck &Check;
   SourceManager &SM; 
@@ -61,16 +57,11 @@ void KernelNameRestrictionPPCallbacks::InclusionDirective(
     SrcMgr::CharacteristicKind FileType) {
   // We recognize the first include as a special main module header and want
   // to leave it in the top position.
-  IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};
-  if (LookForMainModule && !IsAngled) {
-    ID.IsMainModule = true;
-    LookForMainModule = false;
-  }
+  IncludeDirective ID = {HashLoc, FileName};
   IncludeDirectives.push_back(std::move(ID));
 }
 
 void KernelNameRestrictionPPCallbacks::EndOfMainFile() {
-  LookForMainModule = true;
   if (IncludeDirectives.empty())
     return;
 
