@@ -68,23 +68,25 @@ void KernelNameRestrictionPPCallbacks::EndOfMainFile() {
   // Check included files for restricted names
   for (unsigned I = 0; I < IncludeDirectives.size(); ++I) {
     IncludeDirective &ID = IncludeDirectives[I];
-    StringRef FileName = StringRef(ID.Filename);
-    if (FileName.endswith_lower("/kernel.cl") || 
-        FileName.endswith_lower("/verilog.cl") || 
-        FileName.endswith_lower("/vhdl.cl")) {
-      Check.diag(ID.Loc, "The imported kernel source file is named \"kernel.cl\","
-          "\"Verilog.cl\", or \"VHDL.cl\", which could cause compile errors.");
+    StringRef FilePath = StringRef(ID.Filename);
+    StringRef FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
+    if (FileName.equals_lower("kernel.cl") || 
+        FileName.equals_lower("verilog.cl") || 
+        FileName.equals_lower("vhdl.cl")) {
+      Check.diag(ID.Loc, "The imported kernel source file is named 'kernel.cl',"
+          "'Verilog.cl', or 'VHDL.cl', which could cause compile errors.");
     }
   }
 
   // Check main file for restricted names
   const FileEntry *Entry = SM.getFileEntryForID(SM.getMainFileID());
-  StringRef FileName = Entry->getName();
-  if (FileName.endswith_lower("/kernel.cl") || 
-      FileName.endswith_lower("/verilog.cl") || 
-      FileName.endswith_lower("/vhdl.cl")) {
+  StringRef FilePath = Entry->getName();
+  StringRef FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
+  if (FileName.equals_lower("kernel.cl") || 
+      FileName.equals_lower("verilog.cl") || 
+      FileName.equals_lower("vhdl.cl")) {
     Check.diag(SM.getLocForStartOfFile(SM.getMainFileID()),
-        "Naming your OpenCL kernel source file \"kernel.cl\", \"Verilog.cl\", or \"VHDL.cl\" could cause compilation errors.");
+        "Naming your OpenCL kernel source file 'kernel.cl', 'Verilog.cl', or 'VHDL.cl' could cause compilation errors.");
   }
 }
 
