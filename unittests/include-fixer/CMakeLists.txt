@@ -17,11 +17,13 @@ add_extra_unittest(IncludeFixerTests
   )
 
 target_link_libraries(IncludeFixerTests
+  PRIVATE
   clangBasic
   clangFormat
   clangFrontend
   clangIncludeFixer
   clangRewrite
+  clangSerialization
   clangTooling
   clangToolingCore
   findAllSymbols

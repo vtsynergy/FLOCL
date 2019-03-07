@@ -58,6 +58,7 @@ This string is passed as -input argument to
 (defface clang-include-fixer-highlight '((t :background "green"))
   "Used for highlighting the symbol for which a header file is being added.")
 
+;;;###autoload
 (defun clang-include-fixer ()
   "Invoke the Include Fixer to insert missing C++ headers."
   (interactive)
@@ -66,6 +67,7 @@ This string is passed as -input argument to
   (clang-include-fixer--start #'clang-include-fixer--add-header
                               "-output-headers"))
 
+;;;###autoload
 (defun clang-include-fixer-at-point ()
   "Invoke the Clang include fixer for the symbol at point."
   (interactive)
@@ -74,6 +76,7 @@ This string is passed as -input argument to
       (user-error "No symbol at current location"))
     (clang-include-fixer-from-symbol symbol)))
 
+;;;###autoload
 (defun clang-include-fixer-from-symbol (symbol)
   "Invoke the Clang include fixer for the SYMBOL.
 When called interactively, prompts the user for a symbol."
@@ -88,8 +91,14 @@ The current file name is passed after ARGS as last argument.  If
 the call was successful the returned result is stored in a
 temporary buffer, and CALLBACK is called with the temporary
 buffer as only argument."
-  (let ((process (if (fboundp 'make-process)
-                     ;; Prefer using ‘make-process’ if available, because
+  (unless buffer-file-name
+    (user-error "clang-include-fixer works only in buffers that visit a file"))
+  (let ((process (if (and (fboundp 'make-process)
+                          ;; ‘make-process’ doesn’t support remote files
+                          ;; (https://debbugs.gnu.org/cgi/bugreport.cgi?bug=28691).
+                          (not (find-file-name-handler default-directory
+                                                       'start-file-process)))
+                     ;; Prefer using ‘make-process’ if possible, because
                      ;; ‘start-process’ doesn’t allow us to separate the
                      ;; standard error from the output.
                      (clang-include-fixer--make-process callback args)
@@ -120,7 +129,7 @@ arguments.  Return the new process object."
                   :stderr stderr)))
 
 (defun clang-include-fixer--start-process (callback args)
-  "Start a new clang-incude-fixer process using `start-process'.
+  "Start a new clang-incude-fixer process using `start-file-process'.
 CALLBACK is called after the process finishes successfully; it is
 called with a single argument, the buffer where standard output
 has been inserted.  ARGS is a list of additional command line
@@ -128,7 +137,7 @@ arguments.  Return the new process object."
   (let* ((stdin (current-buffer))
          (stdout (generate-new-buffer "*clang-include-fixer output*"))
          (process-connection-type nil)
-         (process (apply #'start-process "clang-include-fixer" stdout
+         (process (apply #'start-file-process "clang-include-fixer" stdout
                          (clang-include-fixer--command args))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-query-on-exit-flag process nil)
@@ -151,7 +160,7 @@ file name; prepends ARGS directly in front of it."
     ,(format "-input=%s" clang-include-fixer-init-string)
     "-stdin"
     ,@args
-    ,(buffer-file-name)))
+    ,(clang-include-fixer--file-local-name buffer-file-name)))
 
 (defun clang-include-fixer--sentinel (stdin stdout stderr callback)
   "Return a process sentinel for clang-include-fixer processes.
@@ -185,9 +194,9 @@ failure, a buffer containing the error output is displayed."
   "Replace current buffer by content of STDOUT."
   (cl-check-type stdout buffer-live)
   (barf-if-buffer-read-only)
-  (unless (clang-include-fixer--insert-line stdout (current-buffer))
-    (erase-buffer)
-    (insert-buffer-substring stdout))
+  (cond ((fboundp 'replace-buffer-contents) (replace-buffer-contents stdout))
+        ((clang-include-fixer--insert-line stdout (current-buffer)))
+        (t (erase-buffer) (insert-buffer-substring stdout)))
   (message "Fix applied")
   nil)
 
@@ -309,14 +318,18 @@ They are replaced by the single element selected by the user."
               (goto-char (clang-include-fixer--closest-overlay overlays)))
             (cl-flet ((header (info) (let-alist info .Header)))
               ;; The header-infos is already sorted by include-fixer.
-              (let* ((header (completing-read
+              (let* ((headers (mapcar #'header .HeaderInfos))
+                     (header (completing-read
                               (clang-include-fixer--format-message
                                "Select include for '%s': " symbol)
-                              (mapcar #'header .HeaderInfos)
-                              nil :require-match nil
-                              'clang-include-fixer--history))
+                              headers nil :require-match nil
+                              'clang-include-fixer--history
+                              ;; Specify a default to prevent the behavior
+                              ;; described in
+                              ;; https://github.com/DarwinAwardWinner/ido-completing-read-plus#why-does-ret-sometimes-not-select-the-first-completion-on-the-list--why-is-there-an-empty-entry-at-the-beginning-of-the-completion-list--what-happened-to-old-style-default-selection.
+                              (car headers)))
                      (info (cl-find header .HeaderInfos :key #'header :test #'string=)))
-                (cl-assert info)
+                (unless info (user-error "No header selected"))
                 (setcar .HeaderInfos info)
                 (setcdr .HeaderInfos nil))))
         (mapc #'delete-overlay overlays)))))
@@ -436,6 +449,12 @@ non-nil.  Otherwise return nil."
 ;; versions.
 (defalias 'clang-include-fixer--format-message
   (if (fboundp 'format-message) 'format-message 'format))
+
+;; ‘file-local-name’ is new in Emacs 26.1.  Provide a fallback for older
+;; versions.
+(defalias 'clang-include-fixer--file-local-name
+  (if (fboundp 'file-local-name) #'file-local-name
+    (lambda (file) (or (file-remote-p file 'localname) file))))
 
 (provide 'clang-include-fixer)
 ;;; clang-include-fixer.el ends here

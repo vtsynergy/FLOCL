@@ -1,9 +1,8 @@
 //===--- PreprocessorTracker.cpp - Preprocessor tracking -*- C++ -*------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===--------------------------------------------------------------------===//
 //
@@ -407,7 +406,7 @@ static std::string getMacroExpandedString(clang::Preprocessor &PP,
   // Walk over the macro Tokens.
   for (const auto &T : MI->tokens()) {
     clang::IdentifierInfo *II = T.getIdentifierInfo();
-    int ArgNo = (II && Args ? MI->getArgumentNum(II) : -1);
+    int ArgNo = (II && Args ? MI->getParameterNum(II) : -1);
     if (ArgNo == -1) {
       // This isn't an argument, just add it.
       if (II == nullptr)
@@ -429,7 +428,7 @@ static std::string getMacroExpandedString(clang::Preprocessor &PP,
     const clang::Token *ArgTok = Args->getUnexpArgument(ArgNo);
     if (Args->ArgNeedsPreexpansion(ArgTok, PP))
       ResultArgToks = &(const_cast<clang::MacroArgs *>(Args))
-          ->getPreExpArgument(ArgNo, MI, PP)[0];
+          ->getPreExpArgument(ArgNo, PP)[0];
     else
       ResultArgToks = ArgTok; // Use non-preexpanded Tokens.
     // If the arg token didn't expand into anything, ignore it.
@@ -750,7 +749,8 @@ public:
                           const clang::FileEntry *File,
                           llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath,
-                          const clang::Module *Imported) override;
+                          const clang::Module *Imported,
+                          clang::SrcMgr::CharacteristicKind FileType) override;
   void FileChanged(clang::SourceLocation Loc,
                    clang::PPCallbacks::FileChangeReason Reason,
                    clang::SrcMgr::CharacteristicKind FileType,
@@ -1289,7 +1289,7 @@ void PreprocessorCallbacks::InclusionDirective(
     llvm::StringRef FileName, bool IsAngled,
     clang::CharSourceRange FilenameRange, const clang::FileEntry *File,
     llvm::StringRef SearchPath, llvm::StringRef RelativePath,
-    const clang::Module *Imported) {
+    const clang::Module *Imported, clang::SrcMgr::CharacteristicKind FileType) {
   int DirectiveLine, DirectiveColumn;
   std::string HeaderPath = getSourceLocationFile(PP, HashLoc);
   getSourceLocationLineAndColumn(PP, HashLoc, DirectiveLine, DirectiveColumn);

@@ -1,9 +1,8 @@
 //===--- LoopConvertCheck.cpp - clang-tidy---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -161,17 +160,18 @@ StatementMatcher makeIteratorLoopMatcher() {
   // overloaded operator*(). If the operator*() returns by value instead of by
   // reference then the return type is tagged with DerefByValueResultName.
   internal::Matcher<VarDecl> TestDerefReturnsByValue =
-      hasType(cxxRecordDecl(hasMethod(allOf(
-          hasOverloadedOperatorName("*"),
-          anyOf(
-              // Tag the return type if it's by value.
-              returns(qualType(unless(hasCanonicalType(referenceType())))
-                          .bind(DerefByValueResultName)),
-              returns(
-                  // Skip loops where the iterator's operator* returns an
-                  // rvalue reference. This is just weird.
-                  qualType(unless(hasCanonicalType(rValueReferenceType())))
-                      .bind(DerefByRefResultName)))))));
+      hasType(hasUnqualifiedDesugaredType(
+          recordType(hasDeclaration(cxxRecordDecl(hasMethod(cxxMethodDecl(
+              hasOverloadedOperatorName("*"),
+              anyOf(
+                  // Tag the return type if it's by value.
+                  returns(qualType(unless(hasCanonicalType(referenceType())))
+                              .bind(DerefByValueResultName)),
+                  returns(
+                      // Skip loops where the iterator's operator* returns an
+                      // rvalue reference. This is just weird.
+                      qualType(unless(hasCanonicalType(rValueReferenceType())))
+                          .bind(DerefByRefResultName))))))))));
 
   return forStmt(
              unless(isInTemplateInstantiation()),
@@ -242,16 +242,17 @@ StatementMatcher makePseudoArrayLoopMatcher() {
   // functions called begin() and end() taking the container as an argument
   // are also allowed.
   TypeMatcher RecordWithBeginEnd = qualType(anyOf(
-      qualType(isConstQualified(),
-               hasDeclaration(cxxRecordDecl(
-                   hasMethod(cxxMethodDecl(hasName("begin"), isConst())),
-                   hasMethod(cxxMethodDecl(hasName("end"),
-                                           isConst())))) // hasDeclaration
-               ),                                        // qualType
       qualType(
-          unless(isConstQualified()),
-          hasDeclaration(cxxRecordDecl(hasMethod(hasName("begin")),
-                                       hasMethod(hasName("end"))))) // qualType
+          isConstQualified(),
+          hasUnqualifiedDesugaredType(recordType(hasDeclaration(cxxRecordDecl(
+              hasMethod(cxxMethodDecl(hasName("begin"), isConst())),
+              hasMethod(cxxMethodDecl(hasName("end"),
+                                      isConst()))))   // hasDeclaration
+                                                 ))), // qualType
+      qualType(unless(isConstQualified()),
+               hasUnqualifiedDesugaredType(recordType(hasDeclaration(
+                   cxxRecordDecl(hasMethod(hasName("begin")),
+                                 hasMethod(hasName("end"))))))) // qualType
       ));
 
   StatementMatcher SizeCallMatcher = cxxMemberCallExpr(
@@ -897,7 +898,7 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   // variable declared inside the loop outside of it.
   // FIXME: Determine when the external dependency isn't an expression converted
   // by another loop.
-  TUInfo->getParentFinder().gatherAncestors(Context->getTranslationUnitDecl());
+  TUInfo->getParentFinder().gatherAncestors(*Context);
   DependencyFinderASTVisitor DependencyFinder(
       &TUInfo->getParentFinder().getStmtToParentStmtMap(),
       &TUInfo->getParentFinder().getDeclToParentStmtMap(),

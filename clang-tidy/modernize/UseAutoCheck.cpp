@@ -1,9 +1,8 @@
 //===--- UseAutoCheck.cpp - clang-tidy-------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/CharInfo.h"
+#include "clang/Tooling/FixIt.h"
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -25,6 +26,34 @@ const char IteratorDeclStmtId[] = "iterator_decl";
 const char DeclWithNewId[] = "decl_new";
 const char DeclWithCastId[] = "decl_cast";
 const char DeclWithTemplateCastId[] = "decl_template";
+
+size_t GetTypeNameLength(bool RemoveStars, StringRef Text) {
+  enum CharType { Space, Alpha, Punctuation };
+  CharType LastChar = Space, BeforeSpace = Punctuation;
+  size_t NumChars = 0;
+  int TemplateTypenameCntr = 0;
+  for (const unsigned char C : Text) {
+    if (C == '<')
+      ++TemplateTypenameCntr;
+    else if (C == '>')
+      --TemplateTypenameCntr;
+    const CharType NextChar =
+        isAlphanumeric(C)
+            ? Alpha
+            : (isWhitespace(C) ||
+               (!RemoveStars && TemplateTypenameCntr == 0 && C == '*'))
+                  ? Space
+                  : Punctuation;
+    if (NextChar != Space) {
+      ++NumChars; // Count the non-space character.
+      if (LastChar == Space && NextChar == Alpha && BeforeSpace == Alpha)
+        ++NumChars; // Count a single space character between two words.
+      BeforeSpace = NextChar;
+    }
+    LastChar = NextChar;
+  }
+  return NumChars;
+}
 
 /// \brief Matches variable declarations that have explicit initializers that
 /// are not initializer lists.
@@ -181,7 +210,7 @@ AST_POLYMORPHIC_MATCHER(hasExplicitTemplateArgs,
 /// \brief Returns a DeclarationMatcher that matches standard iterators nested
 /// inside records with a standard container name.
 DeclarationMatcher standardIterator() {
-  return allOf(
+  return decl(
       namedDecl(hasStdIteratorName()),
       hasDeclContext(recordDecl(hasStdContainerName(), isFromStdNamespace())));
 }
@@ -203,7 +232,7 @@ TypeMatcher nestedIterator() {
 TypeMatcher iteratorFromUsingDeclaration() {
   auto HasIteratorDecl = hasDeclaration(namedDecl(hasStdIteratorName()));
   // Types resulting from using declarations are represented by elaboratedType.
-  return elaboratedType(allOf(
+  return elaboratedType(
       // Unwrap the nested name specifier to test for one of the standard
       // containers.
       hasQualifier(specifiesType(templateSpecializationType(hasDeclaration(
@@ -211,7 +240,7 @@ TypeMatcher iteratorFromUsingDeclaration() {
       // the named type is what comes after the final '::' in the type. It
       // should name one of the standard iterator names.
       namesType(
-          anyOf(typedefType(HasIteratorDecl), recordType(HasIteratorDecl)))));
+          anyOf(typedefType(HasIteratorDecl), recordType(HasIteratorDecl))));
 }
 
 /// \brief This matcher returns declaration statements that contain variable
@@ -287,9 +316,11 @@ StatementMatcher makeCombinedMatcher() {
 
 UseAutoCheck::UseAutoCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
+      MinTypeNameLength(Options.get("MinTypeNameLength", 5)),
       RemoveStars(Options.get("RemoveStars", 0)) {}
 
 void UseAutoCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "MinTypeNameLength", MinTypeNameLength);
   Options.store(Opts, "RemoveStars", RemoveStars ? 1 : 0);
 }
 
@@ -414,6 +445,14 @@ void UseAutoCheck::replaceExpr(
     Loc = Loc.getNextTypeLoc();
   }
   SourceRange Range(Loc.getSourceRange());
+
+  if (MinTypeNameLength != 0 &&
+      GetTypeNameLength(RemoveStars,
+                        tooling::fixit::getText(Loc.getSourceRange(),
+                                                FirstDecl->getASTContext())) <
+          MinTypeNameLength)
+    return;
+
   auto Diag = diag(Range.getBegin(), Message);
 
   // Space after 'auto' to handle cases where the '*' in the pointer type is

@@ -1,9 +1,8 @@
 //===--- UseNullptrCheck.cpp - clang-tidy----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -125,7 +124,7 @@ public:
   }
 
   bool VisitStmt(Stmt *S) {
-    if (SM.getFileLoc(S->getLocStart()) != CastLoc)
+    if (SM.getFileLoc(S->getBeginLoc()) != CastLoc)
       return true;
     Visited = true;
 
@@ -214,8 +213,8 @@ public:
       return true;
     }
 
-    SourceLocation StartLoc = FirstSubExpr->getLocStart();
-    SourceLocation EndLoc = FirstSubExpr->getLocEnd();
+    SourceLocation StartLoc = FirstSubExpr->getBeginLoc();
+    SourceLocation EndLoc = FirstSubExpr->getEndLoc();
 
     // If the location comes from a macro arg expansion, *all* uses of that
     // arg must be checked to result in NullTo(Member)Pointer casts.
@@ -225,17 +224,17 @@ public:
     if (SM.isMacroArgExpansion(StartLoc) && SM.isMacroArgExpansion(EndLoc)) {
       SourceLocation FileLocStart = SM.getFileLoc(StartLoc),
                      FileLocEnd = SM.getFileLoc(EndLoc);
-      SourceLocation ImmediateMarcoArgLoc, MacroLoc;
+      SourceLocation ImmediateMacroArgLoc, MacroLoc;
       // Skip NULL macros used in macro.
-      if (!getMacroAndArgLocations(StartLoc, ImmediateMarcoArgLoc, MacroLoc) ||
-          ImmediateMarcoArgLoc != FileLocStart)
+      if (!getMacroAndArgLocations(StartLoc, ImmediateMacroArgLoc, MacroLoc) ||
+          ImmediateMacroArgLoc != FileLocStart)
         return skipSubTree();
 
       if (isReplaceableRange(FileLocStart, FileLocEnd, SM) &&
           allArgUsesValid(C)) {
         replaceWithNullptr(Check, SM, FileLocStart, FileLocEnd);
       }
-      return skipSubTree();
+      return true;
     }
 
     if (SM.isMacroBodyExpansion(StartLoc) && SM.isMacroBodyExpansion(EndLoc)) {
@@ -269,7 +268,7 @@ private:
   /// \brief Tests that all expansions of a macro arg, one of which expands to
   /// result in \p CE, yield NullTo(Member)Pointer casts.
   bool allArgUsesValid(const CastExpr *CE) {
-    SourceLocation CastLoc = CE->getLocStart();
+    SourceLocation CastLoc = CE->getBeginLoc();
 
     // Step 1: Get location of macro arg and location of the macro the arg was
     // provided to.
@@ -332,7 +331,7 @@ private:
                NullMacros.end();
       }
 
-      MacroLoc = SM.getExpansionRange(ArgLoc).first;
+      MacroLoc = SM.getExpansionRange(ArgLoc).getBegin();
 
       ArgLoc = Expansion.getSpellingLoc().getLocWithOffset(LocInfo.second);
       if (ArgLoc.isFileID())
@@ -387,7 +386,7 @@ private:
         continue;
       }
 
-      MacroLoc = SM.getImmediateExpansionRange(Loc).first;
+      MacroLoc = SM.getImmediateExpansionRange(Loc).getBegin();
       if (MacroLoc.isFileID() && MacroLoc == TestMacroLoc) {
         // Match made.
         return true;
@@ -437,9 +436,9 @@ private:
 
       SourceLocation Loc;
       if (const auto *D = Parent.get<Decl>())
-        Loc = D->getLocStart();
+        Loc = D->getBeginLoc();
       else if (const auto *S = Parent.get<Stmt>())
-        Loc = S->getLocStart();
+        Loc = S->getBeginLoc();
 
       // TypeLoc and NestedNameSpecifierLoc are members of the parent map. Skip
       // them and keep going up.

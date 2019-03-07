@@ -1,9 +1,8 @@
 //===-- ClangIncludeFixer.cpp - Standalone include fixer ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,7 +27,6 @@ using namespace llvm;
 using clang::include_fixer::IncludeFixerContext;
 
 LLVM_YAML_IS_DOCUMENT_LIST_VECTOR(IncludeFixerContext)
-LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(std::string)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(IncludeFixerContext::HeaderInfo)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(IncludeFixerContext::QuerySymbolInfo)
 
@@ -325,7 +323,8 @@ int includeFixerMain(int argc, const char **argv) {
            const IncludeFixerContext::HeaderInfo &RHS) {
           return LHS.QualifiedName == RHS.QualifiedName;
         });
-    auto InsertStyle = format::getStyle("file", Context.getFilePath(), Style);
+    auto InsertStyle = format::getStyle(format::DefaultFormatStyle,
+                                        Context.getFilePath(), Style);
     if (!InsertStyle) {
       llvm::errs() << llvm::toString(InsertStyle.takeError()) << "\n";
       return 1;
@@ -403,7 +402,8 @@ int includeFixerMain(int argc, const char **argv) {
   std::vector<tooling::Replacements> FixerReplacements;
   for (const auto &Context : Contexts) {
     StringRef FilePath = Context.getFilePath();
-    auto InsertStyle = format::getStyle("file", FilePath, Style);
+    auto InsertStyle =
+        format::getStyle(format::DefaultFormatStyle, FilePath, Style);
     if (!InsertStyle) {
       llvm::errs() << llvm::toString(InsertStyle.takeError()) << "\n";
       return 1;

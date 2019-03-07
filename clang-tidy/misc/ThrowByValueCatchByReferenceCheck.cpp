@@ -1,9 +1,8 @@
 //===--- ThrowByValueCatchByReferenceCheck.cpp - clang-tidy----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -81,7 +80,7 @@ void ThrowByValueCatchByReferenceCheck::diagnoseThrowLocations(
     if (declRef && isCatchVariable(declRef)) {
       return;
     }
-    diag(subExpr->getLocStart(), "throw expression throws a pointer; it should "
+    diag(subExpr->getBeginLoc(), "throw expression throws a pointer; it should "
                                  "throw a non-pointer value instead");
   }
   // If the throw statement does not throw by pointer then it throws by value
@@ -124,7 +123,7 @@ void ThrowByValueCatchByReferenceCheck::diagnoseThrowLocations(
       }
     }
     if (emit)
-      diag(subExpr->getLocStart(),
+      diag(subExpr->getBeginLoc(),
            "throw expression should throw anonymous temporary values instead");
   }
 }
@@ -144,7 +143,7 @@ void ThrowByValueCatchByReferenceCheck::diagnoseCatchLocations(
     // We do not diagnose when catching pointer to strings since we also allow
     // throwing string literals.
     if (!PT->getPointeeType()->isAnyCharacterType())
-      diag(varDecl->getLocStart(), diagMsgCatchReference);
+      diag(varDecl->getBeginLoc(), diagMsgCatchReference);
   } else if (!caughtType->isReferenceType()) {
     const char *diagMsgCatchReference = "catch handler catches by value; "
                                         "should catch by reference instead";
@@ -152,7 +151,7 @@ void ThrowByValueCatchByReferenceCheck::diagnoseCatchLocations(
     // value". In this case we should emit a diagnosis message unless the type
     // is trivial.
     if (!caughtType.isTrivialType(context))
-      diag(varDecl->getLocStart(), diagMsgCatchReference);
+      diag(varDecl->getBeginLoc(), diagMsgCatchReference);
   }
 }
 

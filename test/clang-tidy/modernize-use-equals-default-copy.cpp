@@ -1,4 +1,6 @@
-// RUN: %check_clang_tidy %s modernize-use-equals-default %t -- -- -std=c++11 -fno-delayed-template-parsing -fexceptions
+// RUN: %check_clang_tidy %s modernize-use-equals-default %t -- \
+// RUN:   -config="{CheckOptions: [{key: modernize-use-equals-default.IgnoreMacros, value: 0}]}" \
+// RUN:   -- -std=c++11 -fno-delayed-template-parsing -fexceptions
 
 // Out of line definition.
 struct OL {
@@ -495,3 +497,11 @@ STRUCT_WITH_COPY_CONSTRUCT(unsigned char, Hex8CopyConstruct)
 STRUCT_WITH_COPY_ASSIGN(unsigned char, Hex8CopyAssign)
 // CHECK-MESSAGES: :[[@LINE-1]]:1: warning: use '= default' to define a trivial copy-assignment operator
 // CHECK-MESSAGES: :[[@LINE-9]]:40: note:
+
+// Use of braces
+struct UOB{
+  UOB(const UOB &Other):j{Other.j}{}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default' to define a trivial copy constructor [modernize-use-equals-default]
+  // CHECK-FIXES: UOB(const UOB &Other)= default;
+  int j;
+};

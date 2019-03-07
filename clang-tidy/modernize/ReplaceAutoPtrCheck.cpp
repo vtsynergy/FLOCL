@@ -1,9 +1,8 @@
 //===--- ReplaceAutoPtrCheck.cpp - clang-tidy------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,6 +20,7 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
+namespace {
 static const char AutoPtrTokenId[] = "AutoPrTokenId";
 static const char AutoPtrOwnershipTransferId[] = "AutoPtrOwnershipTransferId";
 
@@ -69,11 +69,13 @@ AST_MATCHER(Decl, isFromStdNamespace) {
   return (Info && Info->isStr("std"));
 }
 
+} // namespace
+
 ReplaceAutoPtrCheck::ReplaceAutoPtrCheck(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.get("IncludeStyle", "llvm"))) {}
+          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
 
 void ReplaceAutoPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IncludeStyle",
@@ -106,7 +108,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
 
   //   using std::auto_ptr;
   //   ^~~~~~~~~~~~~~~~~~~
-  Finder->addMatcher(usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(allOf(
+  Finder->addMatcher(usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(namedDecl(
                                    hasName("auto_ptr"), isFromStdNamespace()))))
                          .bind(AutoPtrTokenId),
                      this);

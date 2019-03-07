@@ -1,5 +1,16 @@
 // RUN: %check_clang_tidy %s readability-else-after-return %t -- -- -std=c++11 -fexceptions
 
+namespace std {
+struct string {
+  string(const char *);
+  ~string();
+};
+} // namespace std
+
+struct my_exception {
+  my_exception(const std::string &s);
+};
+
 void f(int a) {
   if (a > 0)
     return;
@@ -85,5 +96,24 @@ void foo() {
     // CHECK-FIXES: {{^}}    } // comment-9
       x++;
     }
+    if (x) {
+      throw my_exception("foo");
+    } else { // comment-10
+    // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: do not use 'else' after 'throw'
+    // CHECK-FIXES: {{^}}    } // comment-10
+      x++;
+    }
+  }
+}
+
+extern int *g();
+extern void h(int **x);
+
+int *decl_in_condition() {
+  if (int *x = g()) {
+    return x;
+  } else {
+    h(&x);
+    return x;
   }
 }

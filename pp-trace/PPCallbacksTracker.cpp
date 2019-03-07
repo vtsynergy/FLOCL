@@ -1,9 +1,8 @@
 //===--- PPCallbacksTracker.cpp - Preprocessor tracker -*--*---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -139,7 +138,7 @@ void PPCallbacksTracker::InclusionDirective(
     llvm::StringRef FileName, bool IsAngled,
     clang::CharSourceRange FilenameRange, const clang::FileEntry *File,
     llvm::StringRef SearchPath, llvm::StringRef RelativePath,
-    const clang::Module *Imported) {
+    const clang::Module *Imported, clang::SrcMgr::CharacteristicKind FileType) {
   beginCallback("InclusionDirective");
   appendArgument("IncludeTok", IncludeTok);
   appendFilePathArgument("FileName", FileName);
@@ -342,9 +341,10 @@ void PPCallbacksTracker::Defined(const clang::Token &MacroNameTok,
 }
 
 // Hook called when a source range is skipped.
-void PPCallbacksTracker::SourceRangeSkipped(clang::SourceRange Range) {
+void PPCallbacksTracker::SourceRangeSkipped(clang::SourceRange Range,
+                                            clang::SourceLocation EndifLoc) {
   beginCallback("SourceRangeSkipped");
-  appendArgument("Range", Range);
+  appendArgument("Range", clang::SourceRange(Range.getBegin(), EndifLoc));
 }
 
 // Hook called whenever an #if is seen.

@@ -1,9 +1,8 @@
 //===-- SymbolIndexManager.cpp - Managing multiple SymbolIndices-*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -97,8 +96,8 @@ SymbolIndexManager::search(llvm::StringRef Identifier,
       Symbols.insert(Symbols.end(), Res.begin(), Res.end());
     }
 
-    DEBUG(llvm::dbgs() << "Searching " << Names.back() << "... got "
-                       << Symbols.size() << " results...\n");
+    LLVM_DEBUG(llvm::dbgs() << "Searching " << Names.back() << "... got "
+                            << Symbols.size() << " results...\n");
 
     for (auto &SymAndSig : Symbols) {
       const SymbolInfo &Symbol = SymAndSig.Symbol;

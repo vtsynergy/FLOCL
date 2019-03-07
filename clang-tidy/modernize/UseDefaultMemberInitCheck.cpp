@@ -1,9 +1,8 @@
 //===--- UseDefaultMemberInitCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,6 +59,48 @@ static StringRef getValueOfValueInit(const QualType InitType) {
   case Type::STK_IntegralComplex:
     return getValueOfValueInit(
         InitType->getAs<ComplexType>()->getElementType());
+
+  case Type::STK_FixedPoint:
+    switch (InitType->getAs<BuiltinType>()->getKind()) {
+    case BuiltinType::ShortAccum:
+    case BuiltinType::SatShortAccum:
+      return "0.0hk";
+    case BuiltinType::Accum:
+    case BuiltinType::SatAccum:
+      return "0.0k";
+    case BuiltinType::LongAccum:
+    case BuiltinType::SatLongAccum:
+      return "0.0lk";
+    case BuiltinType::UShortAccum:
+    case BuiltinType::SatUShortAccum:
+      return "0.0uhk";
+    case BuiltinType::UAccum:
+    case BuiltinType::SatUAccum:
+      return "0.0uk";
+    case BuiltinType::ULongAccum:
+    case BuiltinType::SatULongAccum:
+      return "0.0ulk";
+    case BuiltinType::ShortFract:
+    case BuiltinType::SatShortFract:
+      return "0.0hr";
+    case BuiltinType::Fract:
+    case BuiltinType::SatFract:
+      return "0.0r";
+    case BuiltinType::LongFract:
+    case BuiltinType::SatLongFract:
+      return "0.0lr";
+    case BuiltinType::UShortFract:
+    case BuiltinType::SatUShortFract:
+      return "0.0uhr";
+    case BuiltinType::UFract:
+    case BuiltinType::SatUFract:
+      return "0.0ur";
+    case BuiltinType::ULongFract:
+    case BuiltinType::SatULongFract:
+      return "0.0ulr";
+    default:
+      llvm_unreachable("Unhandled fixed point BuiltinType");
+    }
   }
   llvm_unreachable("Invalid scalar type kind");
 }
@@ -140,7 +181,7 @@ UseDefaultMemberInitCheck::UseDefaultMemberInitCheck(StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       UseAssignment(Options.get("UseAssignment", 0) != 0),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", 1) != 0) {}
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true) != 0) {}
 
 void UseDefaultMemberInitCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -166,21 +207,24 @@ void UseDefaultMemberInitCheck::registerMatchers(MatchFinder *Finder) {
       cxxConstructorDecl(
           isDefaultConstructor(), unless(isInstantiated()),
           forEachConstructorInitializer(
-              allOf(forField(unless(anyOf(isBitField(),
-                                          hasInClassInitializer(anything())))),
-                    cxxCtorInitializer(isWritten(),
-                                       withInitializer(ignoringImplicit(Init)))
-                        .bind("default")))),
+              cxxCtorInitializer(
+                  forField(unless(anyOf(getLangOpts().CPlusPlus2a
+                                            ? unless(anything())
+                                            : isBitField(),
+                                        hasInClassInitializer(anything()),
+                                        hasParent(recordDecl(isUnion()))))),
+                  isWritten(), withInitializer(ignoringImplicit(Init)))
+                  .bind("default"))),
       this);
 
   Finder->addMatcher(
       cxxConstructorDecl(
           unless(ast_matchers::isTemplateInstantiation()),
           forEachConstructorInitializer(
-              allOf(forField(hasInClassInitializer(anything())),
-                    cxxCtorInitializer(isWritten(),
-                                       withInitializer(ignoringImplicit(Init)))
-                        .bind("existing")))),
+              cxxCtorInitializer(forField(hasInClassInitializer(anything())),
+                                 isWritten(),
+                                 withInitializer(ignoringImplicit(Init)))
+                  .bind("existing"))),
       this);
 }
 
@@ -197,9 +241,9 @@ void UseDefaultMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
 
 void UseDefaultMemberInitCheck::checkDefaultInit(
     const MatchFinder::MatchResult &Result, const CXXCtorInitializer *Init) {
-  const FieldDecl *Field = Init->getMember();
+  const FieldDecl *Field = Init->getAnyMember();
 
-  SourceLocation StartLoc = Field->getLocStart();
+  SourceLocation StartLoc = Field->getBeginLoc();
   if (StartLoc.isMacroID() && IgnoreMacros)
     return;
 
@@ -229,7 +273,7 @@ void UseDefaultMemberInitCheck::checkDefaultInit(
 
 void UseDefaultMemberInitCheck::checkExistingInit(
     const MatchFinder::MatchResult &Result, const CXXCtorInitializer *Init) {
-  const FieldDecl *Field = Init->getMember();
+  const FieldDecl *Field = Init->getAnyMember();
 
   if (!sameValue(Field->getInClassInitializer(), Init->getInit()))
     return;

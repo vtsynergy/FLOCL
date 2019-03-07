@@ -1,9 +1,8 @@
 //===--- DraftStore.h - File contents container -----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_DRAFTSTORE_H
 
 #include "Path.h"
+#include "Protocol.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringMap.h"
 #include <mutex>
@@ -20,39 +20,37 @@
 namespace clang {
 namespace clangd {
 
-/// Using 'unsigned' here to avoid undefined behaviour on overflow.
-typedef unsigned DocVersion;
-
-/// Document draft with a version of this draft.
-struct VersionedDraft {
-  DocVersion Version;
-  /// If the value of the field is None, draft is now deleted
-  llvm::Optional<std::string> Draft;
-};
-
 /// A thread-safe container for files opened in a workspace, addressed by
-/// filenames. The contents are owned by the DraftStore. Versions are mantained
-/// for the all added documents, including removed ones. The document version is
-/// incremented on each update and removal of the document.
+/// filenames. The contents are owned by the DraftStore. This class supports
+/// both whole and incremental updates of the documents.
 class DraftStore {
 public:
-  /// \return version and contents of the stored document.
-  /// For untracked files, a (0, None) pair is returned.
-  VersionedDraft getDraft(PathRef File) const;
-  /// \return version of the tracked document.
-  /// For untracked files, 0 is returned.
-  DocVersion getVersion(PathRef File) const;
+  /// \return Contents of the stored document.
+  /// For untracked files, a llvm::None is returned.
+  llvm::Optional<std::string> getDraft(PathRef File) const;
+
+  /// \return List of names of the drafts in this store.
+  std::vector<Path> getActiveFiles() const;
 
   /// Replace contents of the draft for \p File with \p Contents.
-  /// \return The new version of the draft for \p File.
-  DocVersion updateDraft(PathRef File, StringRef Contents);
-  /// Remove the contents of the draft
-  /// \return The new version of the draft for \p File.
-  DocVersion removeDraft(PathRef File);
+  void addDraft(PathRef File, StringRef Contents);
+
+  /// Update the contents of the draft for \p File based on \p Changes.
+  /// If a position in \p Changes is invalid (e.g. out-of-range), the
+  /// draft is not modified.
+  ///
+  /// \return The new version of the draft for \p File, or an error if the
+  /// changes couldn't be applied.
+  llvm::Expected<std::string>
+  updateDraft(PathRef File,
+              llvm::ArrayRef<TextDocumentContentChangeEvent> Changes);
+
+  /// Remove the draft from the store.
+  void removeDraft(PathRef File);
 
 private:
   mutable std::mutex Mutex;
-  llvm::StringMap<VersionedDraft> Drafts;
+  llvm::StringMap<std::string> Drafts;
 };
 
 } // namespace clangd

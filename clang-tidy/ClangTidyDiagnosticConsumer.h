@@ -1,9 +1,8 @@
 //===--- ClangTidyDiagnosticConsumer.h - clang-tidy -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYDIAGNOSTICCONSUMER_H
 
 #include "ClangTidyOptions.h"
+#include "ClangTidyProfiling.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Core/Diagnostic.h"
@@ -87,11 +87,6 @@ struct ClangTidyStats {
   }
 };
 
-/// \brief Container for clang-tidy profiling data.
-struct ProfileData {
-  llvm::StringMap<llvm::TimeRecord> Records;
-};
-
 /// \brief Every \c ClangTidyCheck reports errors through a \c DiagnosticsEngine
 /// provided by this context.
 ///
@@ -104,7 +99,14 @@ struct ProfileData {
 class ClangTidyContext {
 public:
   /// \brief Initializes \c ClangTidyContext instance.
-  ClangTidyContext(std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider);
+  ClangTidyContext(std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider,
+                   bool AllowEnablingAnalyzerAlphaCheckers = false);
+  /// Sets the DiagnosticsEngine that diag() will emit diagnostics to.
+  // FIXME: this is required initialization, and should be a constructor param.
+  // Fix the context -> diag engine -> consumer -> context initialization cycle.
+  void setDiagnosticsEngine(DiagnosticsEngine *DiagEngine) {
+    this->DiagEngine = DiagEngine;
+  }
 
   ~ClangTidyContext();
 
@@ -163,18 +165,14 @@ public:
   /// counters.
   const ClangTidyStats &getStats() const { return Stats; }
 
-  /// \brief Returns all collected errors.
-  ArrayRef<ClangTidyError> getErrors() const { return Errors; }
+  /// \brief Control profile collection in clang-tidy.
+  void setEnableProfiling(bool Profile);
+  bool getEnableProfiling() const { return Profile; }
 
-  /// \brief Clears collected errors.
-  void clearErrors() { Errors.clear(); }
-
-  /// \brief Set the output struct for profile data.
-  ///
-  /// Setting a non-null pointer here will enable profile collection in
-  /// clang-tidy.
-  void setCheckProfileData(ProfileData *Profile);
-  ProfileData *getCheckProfileData() const { return Profile; }
+  /// \brief Control storage of profile date.
+  void setProfileStoragePrefix(StringRef ProfilePrefix);
+  llvm::Optional<ClangTidyProfiling::StorageParams>
+  getProfileStorageParams() const;
 
   /// \brief Should be called when starting to process new translation unit.
   void setCurrentBuildDirectory(StringRef BuildDirectory) {
@@ -186,19 +184,16 @@ public:
     return CurrentBuildDirectory;
   }
 
+  /// \brief If the experimental alpha checkers from the static analyzer can be
+  /// enabled.
+  bool canEnableAnalyzerAlphaCheckers() const {
+    return AllowEnablingAnalyzerAlphaCheckers;
+  }
+
 private:
-  // Calls setDiagnosticsEngine() and storeError().
+  // Writes to Stats.
   friend class ClangTidyDiagnosticConsumer;
-  friend class ClangTidyPluginAction;
 
-  /// \brief Sets the \c DiagnosticsEngine so that Diagnostics can be generated
-  /// correctly.
-  void setDiagnosticsEngine(DiagnosticsEngine *Engine);
-
-  /// \brief Store an \p Error.
-  void storeError(const ClangTidyError &Error);
-
-  std::vector<ClangTidyError> Errors;
   DiagnosticsEngine *DiagEngine;
   std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider;
 
@@ -216,7 +211,10 @@ private:
 
   llvm::DenseMap<unsigned, std::string> CheckNamesByDiagnosticID;
 
-  ProfileData *Profile;
+  bool Profile;
+  std::string ProfilePrefix;
+
+  bool AllowEnablingAnalyzerAlphaCheckers;
 };
 
 /// \brief A diagnostic consumer that turns each \c Diagnostic into a
@@ -235,13 +233,12 @@ public:
   void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                         const Diagnostic &Info) override;
 
-  /// \brief Flushes the internal diagnostics buffer to the ClangTidyContext.
-  void finish() override;
+  // Retrieve the diagnostics that were captured.
+  std::vector<ClangTidyError> take();
 
 private:
   void finalizeLastError();
-
-  void removeIncompatibleErrors(SmallVectorImpl<ClangTidyError> &Errors) const;
+  void removeIncompatibleErrors();
 
   /// \brief Returns the \c HeaderFilter constructed for the options set in the
   /// context.
@@ -249,13 +246,12 @@ private:
 
   /// \brief Updates \c LastErrorRelatesToUserCode and LastErrorPassesLineFilter
   /// according to the diagnostic \p Location.
-  void checkFilters(SourceLocation Location);
+  void checkFilters(SourceLocation Location, const SourceManager& Sources);
   bool passesLineFilter(StringRef FileName, unsigned LineNumber) const;
 
   ClangTidyContext &Context;
   bool RemoveIncompatibleErrors;
-  std::unique_ptr<DiagnosticsEngine> Diags;
-  SmallVector<ClangTidyError, 8> Errors;
+  std::vector<ClangTidyError> Errors;
   std::unique_ptr<llvm::Regex> HeaderFilter;
   bool LastErrorRelatesToUserCode;
   bool LastErrorPassesLineFilter;

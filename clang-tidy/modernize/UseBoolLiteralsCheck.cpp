@@ -1,9 +1,8 @@
 //===--- UseBoolLiteralsCheck.cpp - clang-tidy-----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,6 +16,11 @@ using namespace clang::ast_matchers;
 namespace clang {
 namespace tidy {
 namespace modernize {
+
+UseBoolLiteralsCheck::UseBoolLiteralsCheck(StringRef Name,
+                                           ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
   if (!getLangOpts().CPlusPlus)
@@ -52,11 +56,16 @@ void UseBoolLiteralsCheck::check(const MatchFinder::MatchResult &Result) {
 
   const Expr *Expression = Cast ? Cast : Literal;
 
+  bool InMacro = Expression->getBeginLoc().isMacroID();
+
+  if (InMacro && IgnoreMacros)
+    return;
+
   auto Diag =
       diag(Expression->getExprLoc(),
            "converting integer literal to bool, use bool literal instead");
 
-  if (!Expression->getLocStart().isMacroID())
+  if (!InMacro)
     Diag << FixItHint::CreateReplacement(
         Expression->getSourceRange(), LiteralBooleanValue ? "true" : "false");
 }

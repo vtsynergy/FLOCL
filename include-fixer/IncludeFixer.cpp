@@ -1,9 +1,8 @@
 //===-- IncludeFixer.cpp - Include inserter based on sema callbacks -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -156,7 +155,8 @@ bool IncludeFixerSemaSource::MaybeDiagnoseMissingCompleteType(
   clang::ASTContext &context = CI->getASTContext();
   std::string QueryString = QualType(T->getUnqualifiedDesugaredType(), 0)
                                 .getAsString(context.getPrintingPolicy());
-  DEBUG(llvm::dbgs() << "Query missing complete type '" << QueryString << "'");
+  LLVM_DEBUG(llvm::dbgs() << "Query missing complete type '" << QueryString
+                          << "'");
   // Pass an empty range here since we don't add qualifier in this case.
   std::vector<find_all_symbols::SymbolInfo> MatchedSymbols =
       query(QueryString, "", tooling::Range());
@@ -276,7 +276,8 @@ clang::TypoCorrection IncludeFixerSemaSource::CorrectTypo(
     SymbolRange = CreateToolingRange(Typo.getLoc());
   }
 
-  DEBUG(llvm::dbgs() << "TypoScopeQualifiers: " << TypoScopeString << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "TypoScopeQualifiers: " << TypoScopeString
+                          << "\n");
   std::vector<find_all_symbols::SymbolInfo> MatchedSymbols =
       query(QueryString, TypoScopeString, SymbolRange);
 
@@ -357,12 +358,12 @@ IncludeFixerSemaSource::query(StringRef Query, StringRef ScopedQualifiers,
     return {};
   }
 
-  DEBUG(llvm::dbgs() << "Looking up '" << Query << "' at ");
-  DEBUG(CI->getSourceManager()
-            .getLocForStartOfFile(CI->getSourceManager().getMainFileID())
-            .getLocWithOffset(Range.getOffset())
-            .print(llvm::dbgs(), CI->getSourceManager()));
-  DEBUG(llvm::dbgs() << " ...");
+  LLVM_DEBUG(llvm::dbgs() << "Looking up '" << Query << "' at ");
+  LLVM_DEBUG(CI->getSourceManager()
+                 .getLocForStartOfFile(CI->getSourceManager().getMainFileID())
+                 .getLocWithOffset(Range.getOffset())
+                 .print(llvm::dbgs(), CI->getSourceManager()));
+  LLVM_DEBUG(llvm::dbgs() << " ...");
   llvm::StringRef FileName = CI->getSourceManager().getFilename(
       CI->getSourceManager().getLocForStartOfFile(
           CI->getSourceManager().getMainFileID()));
@@ -390,8 +391,8 @@ IncludeFixerSemaSource::query(StringRef Query, StringRef ScopedQualifiers,
   if (MatchedSymbols.empty())
     MatchedSymbols =
         SymbolIndexMgr.search(Query, /*IsNestedSearch=*/true, FileName);
-  DEBUG(llvm::dbgs() << "Having found " << MatchedSymbols.size()
-                     << " symbols\n");
+  LLVM_DEBUG(llvm::dbgs() << "Having found " << MatchedSymbols.size()
+                          << " symbols\n");
   // We store a copy of MatchedSymbols in a place where it's globally reachable.
   // This is used by the standalone version of the tool.
   this->MatchedSymbols = MatchedSymbols;

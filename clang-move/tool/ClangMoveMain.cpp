@@ -1,9 +1,8 @@
 //===-- ClangMoveMain.cpp - move defintion to new file ----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,8 +29,8 @@ namespace {
 
 std::error_code CreateNewFile(const llvm::Twine &path) {
   int fd = 0;
-  if (std::error_code ec =
-          llvm::sys::fs::openFileForWrite(path, fd, llvm::sys::fs::F_Text))
+  if (std::error_code ec = llvm::sys::fs::openFileForWrite(
+          path, fd, llvm::sys::fs::CD_CreateAlways, llvm::sys::fs::F_Text))
     return ec;
 
   return llvm::sys::Process::SafelyCloseFileDescriptor(fd);
@@ -128,7 +127,7 @@ int main(int argc, const char **argv) {
                                  InitialDirectory.str(), Style, DumpDecls};
   move::DeclarationReporter Reporter;
   move::ClangMoveActionFactory Factory(&Context, &Reporter);
-  
+
   int CodeStatus = Tool.run(&Factory);
   if (CodeStatus)
     return CodeStatus;
@@ -138,8 +137,11 @@ int main(int argc, const char **argv) {
     const auto &Declarations = Reporter.getDeclarationList();
     for (auto I = Declarations.begin(), E = Declarations.end(); I != E; ++I) {
       llvm::outs() << "  {\n";
-      llvm::outs() << "    \"DeclarationName\": \"" << I->first << "\",\n";
-      llvm::outs() << "    \"DeclarationType\": \"" << I->second << "\"\n";
+      llvm::outs() << "    \"DeclarationName\": \"" << I->QualifiedName
+                   << "\",\n";
+      llvm::outs() << "    \"DeclarationType\": \"" << I->Kind << "\",\n";
+      llvm::outs() << "    \"Templated\": " << (I->Templated ? "true" : "false")
+                   << "\n";
       llvm::outs() << "  }";
       // Don't print trailing "," at the end of last element.
       if (I != std::prev(E))

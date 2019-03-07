@@ -1,9 +1,8 @@
 //===--- DefinitionsInHeadersCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +21,7 @@ namespace {
 AST_MATCHER_P(NamedDecl, usesHeaderFileExtension,
               utils::HeaderFileExtensionsSet, HeaderFileExtensions) {
   return utils::isExpansionLocInHeaderFile(
-      Node.getLocStart(), Finder->getASTContext().getSourceManager(),
+      Node.getBeginLoc(), Finder->getASTContext().getSourceManager(),
       HeaderFileExtensions);
 }
 
@@ -32,8 +31,8 @@ DefinitionsInHeadersCheck::DefinitionsInHeadersCheck(StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       UseHeaderFileExtension(Options.get("UseHeaderFileExtension", true)),
-      RawStringHeaderFileExtensions(
-          Options.getLocalOrGlobal("HeaderFileExtensions", ",h,hh,hpp,hxx")) {
+      RawStringHeaderFileExtensions(Options.getLocalOrGlobal(
+          "HeaderFileExtensions", utils::defaultHeaderFileExtensions())) {
   if (!utils::parseHeaderFileExtensions(RawStringHeaderFileExtensions,
                                         HeaderFileExtensions, ',')) {
     // FIXME: Find a more suitable way to handle invalid configuration
@@ -94,7 +93,10 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
   //
   // Although these might also cause ODR violations, we can be less certain and
   // should try to keep the false-positive rate down.
-  if (ND->getLinkageInternal() == InternalLinkage)
+  //
+  // FIXME: Should declarations in anonymous namespaces get the same treatment
+  // as static / const declarations?
+  if (!ND->hasExternalFormalLinkage() && !ND->isInAnonymousNamespace())
     return;
 
   if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
@@ -138,6 +140,9 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
       return;
     // Ignore variable definition within function scope.
     if (VD->hasLocalStorage() || VD->isStaticLocal())
+      return;
+    // Ignore inline variables.
+    if (VD->isInline())
       return;
 
     diag(VD->getLocation(),

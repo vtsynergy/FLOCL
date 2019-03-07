@@ -1,11 +1,10 @@
-//===--- ModuleAssistant.cpp - Module map generation manager -*- C++ -*---===//
+//===--- ModuleAssistant.cpp - Module map generation manager --*- C++ -*---===//
 //
-//                     The LLVM Compiler Infrastructure
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // This file defines the module generation entry point function,
 // createModuleMap, a Module class for representing a module,
@@ -25,9 +24,9 @@
 // to modularize.  It then calls a writeModuleMap function to set up the
 // module map file output and walk the module tree, outputting the module
 // map file using a stream obtained and managed by an
-// llvm::tool_output_file object.
+// llvm::ToolOutputFile object.
 //
-//===---------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "Modularize.h"
 #include "llvm/ADT/SmallString.h"
@@ -46,7 +45,6 @@ namespace {
 class Module {
 public:
   Module(llvm::StringRef Name, bool Problem);
-  Module();
   ~Module();
   bool output(llvm::raw_fd_ostream &OS, int Indent);
   Module *findSubModule(llvm::StringRef SubName);
@@ -65,7 +63,6 @@ public:
 // Constructors.
 Module::Module(llvm::StringRef Name, bool Problem)
   : Name(Name), IsProblem(Problem) {}
-Module::Module() : IsProblem(false) {}
 
 // Destructor.
 Module::~Module() {
@@ -271,7 +268,7 @@ static bool writeModuleMap(llvm::StringRef ModuleMapPath,
 
   // Set up module map output file.
   std::error_code EC;
-  llvm::tool_output_file Out(FilePath, EC, llvm::sys::fs::F_Text);
+  llvm::ToolOutputFile Out(FilePath, EC, llvm::sys::fs::F_Text);
   if (EC) {
     llvm::errs() << Argv0 << ": error opening " << FilePath << ":"
                  << EC.message() << "\n";
@@ -289,7 +286,7 @@ static bool writeModuleMap(llvm::StringRef ModuleMapPath,
   if (!RootModule->output(OS, 0))
     return false;
 
-  // Tell tool_output_file that we want to keep the file.
+  // Tell ToolOutputFile that we want to keep the file.
   Out.keep();
 
   return true;

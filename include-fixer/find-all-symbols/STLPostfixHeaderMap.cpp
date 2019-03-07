@@ -1,9 +1,8 @@
 //===-- STLPostfixHeaderMap.h - hardcoded STL header map --------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -211,6 +210,10 @@ const HeaderMapCollector::RegexHeaderMap *getSTLPostfixHeaderMap() {
       {"cwctype$", "<cwctype>"},
       {"cxxabi.h$", "<cxxabi.h>"},
       {"debug/debug.h$", "<numeric>"},
+      {"debug/map.h$", "<map>"},
+      {"debug/multimap.h$", "<multimap>"},
+      {"debug/multiset.h$", "<multiset>"},
+      {"debug/set.h$", "<set>"},
       {"deque$", "<deque>"},
       {"exception$", "<exception>"},
       {"ext/alloc_traits.h$", "<deque>"},
@@ -314,10 +317,10 @@ const HeaderMapCollector::RegexHeaderMap *getSTLPostfixHeaderMap() {
       {"include/xlocale.h$", "<cstring>"},
       {"bits/atomic_word.h$", "<memory>"},
       {"bits/basic_file.h$", "<fstream>"},
-      {"bits/c++allocator.h$", "<string>"},
-      {"bits/c++config.h$", "<iosfwd>"},
-      {"bits/c++io.h$", "<ios>"},
-      {"bits/c++locale.h$", "<locale>"},
+      {"bits/c\\+\\+allocator.h$", "<string>"},
+      {"bits/c\\+\\+config.h$", "<iosfwd>"},
+      {"bits/c\\+\\+io.h$", "<ios>"},
+      {"bits/c\\+\\+locale.h$", "<locale>"},
       {"bits/cpu_defines.h$", "<iosfwd>"},
       {"bits/ctype_base.h$", "<locale>"},
       {"bits/cxxabi_tweaks.h$", "<cxxabi.h>"},

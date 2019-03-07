@@ -1,9 +1,8 @@
 //===--- TypePromotionInMathFnCheck.cpp - clang-tidy-----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +32,7 @@ TypePromotionInMathFnCheck::TypePromotionInMathFnCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.get("IncludeStyle", "llvm"))) {}
+          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
 
 void TypePromotionInMathFnCheck::registerPPCallbacks(
     CompilerInstance &Compiler) {
@@ -195,7 +194,7 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
   // declared in <math.h>.
   if (FnInCmath)
     if (auto IncludeFixit = IncludeInserter->CreateIncludeInsertion(
-            Result.Context->getSourceManager().getFileID(Call->getLocStart()),
+            Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
             "cmath", /*IsAngled=*/true))
       Diag << *IncludeFixit;
 }

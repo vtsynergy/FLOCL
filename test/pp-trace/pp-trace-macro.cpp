@@ -44,7 +44,7 @@ X
 // CHECK-NEXT:   Range: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:5", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:19"]
 // CHECK-NEXT: - Callback: If
 // CHECK-NEXT:   Loc: "{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:2"
-// CHECK-NEXT:   ConditionRange: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:4", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:6:1"]
+// CHECK-NEXT:   ConditionRange: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:5", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:5:19"]
 // CHECK-NEXT:   ConditionValue: CVK_True
 // CHECK-NEXT: - Callback: Endif
 // CHECK-NEXT:   Loc: "{{.*}}{{[/\\]}}pp-trace-macro.cpp:6:2"
@@ -58,13 +58,13 @@ X
 // CHECK-NEXT:   Range: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:5", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:19"]
 // CHECK-NEXT: - Callback: If
 // CHECK-NEXT:   Loc: "{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:2"
-// CHECK-NEXT:   ConditionRange: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:4", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:9:1"]
+// CHECK-NEXT:   ConditionRange: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:5", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:19"]
 // CHECK-NEXT:   ConditionValue: CVK_False
 // CHECK-NEXT: - Callback: Endif
 // CHECK-NEXT:   Loc: "{{.*}}{{[/\\]}}pp-trace-macro.cpp:9:2"
 // CHECK-NEXT:   IfLoc: "{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:2"
 // CHECK-NEXT: - Callback: SourceRangeSkipped
-// CHECK-NEXT:   Range: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:2", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:9:2"]
+// CHECK-NEXT:   Range: ["{{.*}}{{[/\\]}}pp-trace-macro.cpp:8:1", "{{.*}}{{[/\\]}}pp-trace-macro.cpp:9:2"]
 // CHECK-NEXT: - Callback: MacroDefined
 // CHECK-NEXT:   MacroNameTok: FUNCMACRO
 // CHECK-NEXT:   MacroDirective: MD_Define

@@ -1,9 +1,8 @@
 //===--- AvoidCStyleCastsCheck.cpp - clang-tidy -----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,10 +57,9 @@ static bool pointedUnqualifiedTypesAreEqual(QualType T1, QualType T2) {
 
 void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
-  auto ParenRange = CharSourceRange::getTokenRange(CastExpr->getLParenLoc(),
-                                                   CastExpr->getRParenLoc());
+
   // Ignore casts in macros.
-  if (ParenRange.getBegin().isMacroID() || ParenRange.getEnd().isMacroID())
+  if (CastExpr->getExprLoc().isMacroID())
     return;
 
   // Casting to void is an idiomatic way to mute "unused variable" and similar
@@ -82,6 +80,9 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
   const QualType SourceType = SourceTypeAsWritten.getCanonicalType();
   const QualType DestType = DestTypeAsWritten.getCanonicalType();
 
+  auto ReplaceRange = CharSourceRange::getCharRange(
+      CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+
   bool FnToFnCast =
       isFunction(SourceTypeAsWritten) && isFunction(DestTypeAsWritten);
 
@@ -91,14 +92,15 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
     // in this case. Don't emit "redundant cast" warnings for function
     // pointer/reference types.
     if (SourceTypeAsWritten == DestTypeAsWritten) {
-      diag(CastExpr->getLocStart(), "redundant cast to the same type")
-          << FixItHint::CreateRemoval(ParenRange);
+      diag(CastExpr->getBeginLoc(), "redundant cast to the same type")
+          << FixItHint::CreateRemoval(ReplaceRange);
       return;
     }
   }
 
   // The rest of this check is only relevant to C++.
-  if (!getLangOpts().CPlusPlus)
+  // We also disable it for Objective-C++.
+  if (!getLangOpts().CPlusPlus || getLangOpts().ObjC)
     return;
   // Ignore code inside extern "C" {} blocks.
   if (!match(expr(hasAncestor(linkageSpecDecl())), *CastExpr, *Result.Context)
@@ -113,7 +115,7 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
 
   // Ignore code in .c files #included in other files (which shouldn't be done,
   // but people still do this for test and other purposes).
-  if (SM.getFilename(SM.getSpellingLoc(CastExpr->getLocStart())).endswith(".c"))
+  if (SM.getFilename(SM.getSpellingLoc(CastExpr->getBeginLoc())).endswith(".c"))
     return;
 
   // Leave type spelling exactly as it was (unlike
@@ -125,18 +127,18 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
                            SM, getLangOpts());
 
   auto Diag =
-      diag(CastExpr->getLocStart(), "C-style casts are discouraged; use %0");
+      diag(CastExpr->getBeginLoc(), "C-style casts are discouraged; use %0");
 
   auto ReplaceWithCast = [&](std::string CastText) {
     const Expr *SubExpr = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
     if (!isa<ParenExpr>(SubExpr)) {
       CastText.push_back('(');
       Diag << FixItHint::CreateInsertion(
-          Lexer::getLocForEndOfToken(SubExpr->getLocEnd(), 0, SM,
+          Lexer::getLocForEndOfToken(SubExpr->getEndLoc(), 0, SM,
                                      getLangOpts()),
           ")");
     }
-    Diag << FixItHint::CreateReplacement(ParenRange, CastText);
+    Diag << FixItHint::CreateReplacement(ReplaceRange, CastText);
   };
   auto ReplaceWithNamedCast = [&](StringRef CastType) {
     Diag << CastType;
@@ -184,7 +186,7 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
       }
       break;
     }
-  // FALLTHROUGH
+    LLVM_FALLTHROUGH;
   case clang::CK_IntegralCast:
     // Convert integral and no-op casts between builtin types and enums to
     // static_cast. A cast from enum to integer may be unnecessary, but it's

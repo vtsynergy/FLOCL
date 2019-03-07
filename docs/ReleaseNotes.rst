@@ -1,38 +1,38 @@
 ===================================================
-Extra Clang Tools 5.0.0 (In-Progress) Release Notes
+Extra Clang Tools 9.0.0 (In-Progress) Release Notes
 ===================================================
 
 .. contents::
    :local:
    :depth: 3
 
-Written by the `LLVM Team <http://llvm.org/>`_
+Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Extra Clang Tools 5 release.
+   These are in-progress notes for the upcoming Extra Clang Tools 9 release.
    Release notes for previous releases can be found on
-   `the Download Page <http://releases.llvm.org/download.html>`_.
+   `the Download Page <https://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
 This document contains the release notes for the Extra Clang Tools, part of the
-Clang release 5.0.0. Here we describe the status of the Extra Clang Tools in
+Clang release 9.0.0. Here we describe the status of the Extra Clang Tools in
 some detail, including major improvements from the previous release and new
 feature work. All LLVM releases may be downloaded from the `LLVM releases web
-site <http://llvm.org/releases/>`_.
+site <https://llvm.org/releases/>`_.
 
 For more information about Clang or LLVM, including information about
-the latest release, please see the `Clang Web Site <http://clang.llvm.org>`_ or
-the `LLVM Web Site <http://llvm.org>`_.
+the latest release, please see the `Clang Web Site <https://clang.llvm.org>`_ or
+the `LLVM Web Site <https://llvm.org>`_.
 
 Note that if you are reading this file from a Subversion checkout or the
 main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
-see the `releases page <http://llvm.org/releases/>`_.
+see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Extra Clang Tools 5.0.0?
+What's New in Extra Clang Tools 9.0.0?
 ======================================
 
 Some of the major new features and improvements to Extra Clang Tools are listed
@@ -44,10 +44,20 @@ Major New Features
 
 ...
 
+Improvements to clangd
+----------------------
+
+The improvements are...
+
+Improvements to clang-doc
+-------------------------
+
+The improvements are...
+
 Improvements to clang-query
 ---------------------------
 
-The improvements are...
+- ...
 
 Improvements to clang-rename
 ----------------------------
@@ -57,88 +67,36 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-- New `android-file-open-flag
-  <http://clang.llvm.org/extra/clang-tidy/checks/android-file-open-flag.html>`_ check
+- New :doc:`abseil-duration-addition
+  <clang-tidy/checks/abseil-duration-addition>` check.
 
-  Checks if the required file flag ``O_CLOEXEC`` exists in ``open()``,
-  ``open64()`` and ``openat()``.
+  Checks for cases where addition should be performed in the ``absl::Time``
+  domain.
 
-- New `cert-dcl21-cpp
-  <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl21-cpp.html>`_ check
+- New :doc:`abseil-duration-conversion-cast
+  <clang-tidy/checks/abseil-duration-conversion-cast>` check.
 
-  Checks if the overloaded postfix ``operator++/--`` returns a constant object.
+  Checks for casts of ``absl::Duration`` conversion functions, and recommends
+  the right conversion function instead.
 
-- New `cert-dcl58-cpp
-  <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl58-cpp.html>`_ check
+- New :doc:`abseil-duration-unnecessary-conversion
+  <clang-tidy/checks/abseil-duration-unnecessary-conversion>` check.
 
-  Finds modification of the ``std`` or ``posix`` namespace.
+  Finds and fixes cases where ``absl::Duration`` values are being converted to
+  numeric types and back again.
 
-- Improved `cppcoreguidelines-no-malloc
-  <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-no-malloc.html>`_ check
+- New :doc:`google-readability-avoid-underscore-in-googletest-name
+  <clang-tidy/checks/google-readability-avoid-underscore-in-googletest-name>`
+  check.
 
-  Allow custom memory management functions to be considered as well.
+  Checks whether there are underscores in googletest test and test case names in
+  test macros, which is prohibited by the Googletest FAQ.
 
-- New `misc-forwarding-reference-overload
-  <http://clang.llvm.org/extra/clang-tidy/checks/misc-forwarding-reference-overload.html>`_ check
-
-  Finds perfect forwarding constructors that can unintentionally hide copy or move constructors.
-
-- New `misc-lambda-function-name <http://clang.llvm.org/extra/clang-tidy/checks/misc-lambda-function-name.html>`_ check
-
-  Finds uses of ``__func__`` or ``__FUNCTION__`` inside lambdas.
-
-- New `modernize-replace-random-shuffle
-  <http://clang.llvm.org/extra/clang-tidy/checks/modernize-replace-random-shuffle.html>`_ check
-
-  Finds and fixes usage of ``std::random_shuffle`` as the function has been removed from C++17.
-
-- New `modernize-return-braced-init-list
-  <http://clang.llvm.org/extra/clang-tidy/checks/modernize-return-braced-init-list.html>`_ check
-
-  Finds and replaces explicit calls to the constructor in a return statement by
-  a braced initializer list so that the return type is not needlessly repeated.
-
-- Improved `modernize-use-emplace
-  <http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-emplace.html>`_ check
-
-  Removes unnecessary ``std::make_pair`` and ``std::make_tuple`` calls in
-  push_back calls and turns them into emplace_back. The check now also is able
-  to remove user-defined make functions from ``push_back`` calls on containers
-  of custom tuple-like types by providing `TupleTypes` and `TupleMakeFunctions`.
-
-- New `modernize-use-noexcept
-  <http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-noexcept.html>`_ check
-
-  Replaces dynamic exception specifications with ``noexcept`` or a user defined macro.
-
-- New `performance-inefficient-vector-operation
-  <http://clang.llvm.org/extra/clang-tidy/checks/performance-inefficient-vector-operation.html>`_ check
-
-  Finds possible inefficient vector operations in for loops that may cause
-  unnecessary memory reallocations.
-
-- Added `NestingThreshold` to `readability-function-size
-  <http://clang.llvm.org/extra/clang-tidy/checks/readability-function-size.html>`_ check
-
-  Finds compound statements which create next nesting level after `NestingThreshold` and emits a warning.
-
-- Added `ParameterThreshold` to `readability-function-size
-  <http://clang.llvm.org/extra/clang-tidy/checks/readability-function-size.html>`_ check
-
-  Finds functions that have more than `ParameterThreshold` parameters and emits a warning.
-
-- New `readability-misleading-indentation
-  <http://clang.llvm.org/extra/clang-tidy/checks/readability-misleading-indentation.html>`_ check
-
-  Finds misleading indentation where braces should be introduced or the code should be reformatted.
-
-- Support clang-formatting of the code around applied fixes (``-format-style``
-  command-line option).
-
-- New `hicpp` module
-
-  Adds checks that implement the `High Integrity C++ Coding Standard <http://www.codingstandard.com/section/index/>`_ and other safety
-  standards. Many checks are aliased to other modules.
+- The :doc:`bugprone-argument-comment
+  <clang-tidy/checks/bugprone-argument-comment>` now supports
+  `CommentBoolLiterals`, `CommentIntegerLiterals`,  `CommentFloatLiterals`,
+  `CommentUserDefiniedLiterals`, `CommentStringLiterals`,
+  `CommentCharacterLiterals` & `CommentNullPtrs` options.
 
 Improvements to include-fixer
 -----------------------------

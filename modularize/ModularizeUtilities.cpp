@@ -1,9 +1,8 @@
 //===--- extra/modularize/ModularizeUtilities.cpp -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -399,14 +398,15 @@ bool ModularizeUtilities::collectUmbrellaHeaders(StringRef UmbrellaDirName,
   SmallString<256> Directory(UmbrellaDirName);
   // Walk the directory.
   std::error_code EC;
-  llvm::sys::fs::file_status Status;
   for (llvm::sys::fs::directory_iterator I(Directory.str(), EC), E; I != E;
     I.increment(EC)) {
     if (EC)
       return false;
     std::string File(I->path());
-    I->status(Status);
-    llvm::sys::fs::file_type Type = Status.type();
+    llvm::ErrorOr<llvm::sys::fs::basic_file_status> Status = I->status();
+    if (!Status)
+      return false;
+    llvm::sys::fs::file_type Type = Status->type();
     // If the file is a directory, ignore the name and recurse.
     if (Type == llvm::sys::fs::file_type::directory_file) {
       if (!collectUmbrellaHeaders(File, Dependents))

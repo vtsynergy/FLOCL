@@ -173,6 +173,16 @@ struct PositiveString {
   // CHECK-FIXES: const char *s{"foo"};
 };
 
+struct PositiveStruct {
+  PositiveStruct() : s(7) {}
+  // CHECK-FIXES: PositiveStruct()  {}
+  struct {
+    int s;
+    // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: use default member initializer for 's'
+    // CHECK-FIXES: int s{7};
+  };
+};
+
 template <typename T>
 struct NegativeTemplate {
     NegativeTemplate() : t() {}
@@ -370,6 +380,16 @@ struct ExistingString {
   const char *e2 = nullptr;
   const char *e3 = "foo";
   const char *e4 = "bar";
+};
+
+struct UnionExisting {
+  UnionExisting() : e(5.0) {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: member initializer for 'e' is redundant
+  // CHECK-FIXES: UnionExisting()  {}
+  union {
+    int i;
+    double e = 5.0;
+  };
 };
 
 template <typename T>

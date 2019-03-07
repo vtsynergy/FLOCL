@@ -1,9 +1,8 @@
 //===--- PPCallbacksTracker.h - Preprocessor tracking -----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -102,7 +101,8 @@ public:
                           const clang::FileEntry *File,
                           llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath,
-                          const clang::Module *Imported) override;
+                          const clang::Module *Imported,
+                          clang::SrcMgr::CharacteristicKind FileType) override;
   void moduleImport(clang::SourceLocation ImportLoc, clang::ModuleIdPath Path,
                     const clang::Module *Imported) override;
   void EndOfMainFile() override;
@@ -145,7 +145,8 @@ public:
   void Defined(const clang::Token &MacroNameTok,
                const clang::MacroDefinition &MD,
                clang::SourceRange Range) override;
-  void SourceRangeSkipped(clang::SourceRange Range) override;
+  void SourceRangeSkipped(clang::SourceRange Range,
+                          clang::SourceLocation EndifLoc) override;
   void If(clang::SourceLocation Loc, clang::SourceRange ConditionRange,
           ConditionValueKind ConditionValue) override;
   void Elif(clang::SourceLocation Loc, clang::SourceRange ConditionRange,

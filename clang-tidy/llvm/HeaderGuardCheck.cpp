@@ -1,9 +1,8 @@
 //===--- HeaderGuardCheck.cpp - clang-tidy --------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,20 +14,7 @@ namespace llvm {
 
 LLVMHeaderGuardCheck::LLVMHeaderGuardCheck(StringRef Name,
                                            ClangTidyContext *Context)
-    : HeaderGuardCheck(Name, Context),
-      RawStringHeaderFileExtensions(
-          Options.getLocalOrGlobal("HeaderFileExtensions", ",h,hh,hpp,hxx")) {
-  utils::parseHeaderFileExtensions(RawStringHeaderFileExtensions,
-                                   HeaderFileExtensions, ',');
-}
-
-void LLVMHeaderGuardCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "HeaderFileExtensions", RawStringHeaderFileExtensions);
-}
-
-bool LLVMHeaderGuardCheck::shouldFixHeaderGuard(StringRef FileName) {
-  return utils::isHeaderFileExtension(FileName, HeaderFileExtensions);
-}
+    : HeaderGuardCheck(Name, Context) {}
 
 std::string LLVMHeaderGuardCheck::getHeaderGuard(StringRef Filename,
                                                  StringRef OldGuard) {

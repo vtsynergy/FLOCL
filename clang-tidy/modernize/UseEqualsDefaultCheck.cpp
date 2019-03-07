@@ -1,9 +1,8 @@
 //===--- UseEqualsDefaultCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -77,12 +76,12 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
     if (match(
             cxxConstructorDecl(forEachConstructorInitializer(cxxCtorInitializer(
                 isBaseInitializer(),
-                withInitializer(cxxConstructExpr(allOf(
+                withInitializer(cxxConstructExpr(
                     hasType(equalsNode(Base)),
                     hasDeclaration(cxxConstructorDecl(isCopyConstructor())),
                     argumentCountIs(1),
                     hasArgument(
-                        0, declRefExpr(to(varDecl(equalsNode(Param))))))))))),
+                        0, declRefExpr(to(varDecl(equalsNode(Param)))))))))),
             *Ctor, *Context)
             .empty())
       return false;
@@ -97,10 +96,11 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
                 isMemberInitializer(), forField(equalsNode(Field)),
                 withInitializer(anyOf(
                     AccessToFieldInParam,
-                    cxxConstructExpr(allOf(
+                    initListExpr(has(AccessToFieldInParam)),
+                    cxxConstructExpr(
                         hasDeclaration(cxxConstructorDecl(isCopyConstructor())),
                         argumentCountIs(1),
-                        hasArgument(0, AccessToFieldInParam)))))))),
+                        hasArgument(0, AccessToFieldInParam))))))),
             *Ctor, *Context)
             .empty())
       return false;
@@ -144,21 +144,21 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
     //   ((Base*)this)->operator=((Base)Other);
     //
     // So we are looking for a member call that fulfills:
-    if (match(compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(allOf(
-                  // - The object is an implicit cast of 'this' to a pointer to
-                  //   a base class.
-                  onImplicitObjectArgument(
-                      implicitCastExpr(hasImplicitDestinationType(
-                                           pointsTo(type(equalsNode(Base)))),
-                                       hasSourceExpression(cxxThisExpr()))),
-                  // - The called method is the operator=.
-                  callee(cxxMethodDecl(isCopyAssignmentOperator())),
-                  // - The argument is (an implicit cast to a Base of) the
-                  // argument taken by "Operator".
-                  argumentCountIs(1),
-                  hasArgument(0,
-                              declRefExpr(to(varDecl(equalsNode(Param)))))))))),
-              *Compound, *Context)
+    if (match(
+            compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(
+                // - The object is an implicit cast of 'this' to a pointer to
+                //   a base class.
+                onImplicitObjectArgument(
+                    implicitCastExpr(hasImplicitDestinationType(
+                                         pointsTo(type(equalsNode(Base)))),
+                                     hasSourceExpression(cxxThisExpr()))),
+                // - The called method is the operator=.
+                callee(cxxMethodDecl(isCopyAssignmentOperator())),
+                // - The argument is (an implicit cast to a Base of) the
+                // argument taken by "Operator".
+                argumentCountIs(1),
+                hasArgument(0, declRefExpr(to(varDecl(equalsNode(Param))))))))),
+            *Compound, *Context)
             .empty())
       return false;
   }
@@ -197,36 +197,46 @@ static bool bodyEmpty(const ASTContext *Context, const CompoundStmt *Body) {
   return !Invalid && std::strspn(Text.data(), " \t\r\n") == Text.size();
 }
 
+UseEqualsDefaultCheck::UseEqualsDefaultCheck(StringRef Name,
+                                             ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true) != 0) {}
+
+void UseEqualsDefaultCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+}
+
 void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
-  if (getLangOpts().CPlusPlus) {
-    // Destructor.
-    Finder->addMatcher(cxxDestructorDecl(isDefinition()).bind(SpecialFunction),
-                       this);
-    Finder->addMatcher(
-        cxxConstructorDecl(
-            isDefinition(),
-            anyOf(
-                // Default constructor.
-                allOf(unless(hasAnyConstructorInitializer(isWritten())),
-                      parameterCountIs(0)),
-                // Copy constructor.
-                allOf(isCopyConstructor(),
-                      // Discard constructors that can be used as a copy
-                      // constructor because all the other arguments have
-                      // default values.
-                      parameterCountIs(1))))
-            .bind(SpecialFunction),
-        this);
-    // Copy-assignment operator.
-    Finder->addMatcher(
-        cxxMethodDecl(isDefinition(), isCopyAssignmentOperator(),
-                      // isCopyAssignmentOperator() allows the parameter to be
-                      // passed by value, and in this case it cannot be
-                      // defaulted.
-                      hasParameter(0, hasType(lValueReferenceType())))
-            .bind(SpecialFunction),
-        this);
-  }
+  if (!getLangOpts().CPlusPlus)
+    return;
+
+  // Destructor.
+  Finder->addMatcher(cxxDestructorDecl(isDefinition()).bind(SpecialFunction),
+                     this);
+  Finder->addMatcher(
+      cxxConstructorDecl(
+          isDefinition(),
+          anyOf(
+              // Default constructor.
+              allOf(unless(hasAnyConstructorInitializer(isWritten())),
+                    parameterCountIs(0)),
+              // Copy constructor.
+              allOf(isCopyConstructor(),
+                    // Discard constructors that can be used as a copy
+                    // constructor because all the other arguments have
+                    // default values.
+                    parameterCountIs(1))))
+          .bind(SpecialFunction),
+      this);
+  // Copy-assignment operator.
+  Finder->addMatcher(
+      cxxMethodDecl(isDefinition(), isCopyAssignmentOperator(),
+                    // isCopyAssignmentOperator() allows the parameter to be
+                    // passed by value, and in this case it cannot be
+                    // defaulted.
+                    hasParameter(0, hasType(lValueReferenceType())))
+          .bind(SpecialFunction),
+      this);
 }
 
 void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
@@ -235,6 +245,9 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
   // Both CXXConstructorDecl and CXXDestructorDecl inherit from CXXMethodDecl.
   const auto *SpecialFunctionDecl =
       Result.Nodes.getNodeAs<CXXMethodDecl>(SpecialFunction);
+
+  if (IgnoreMacros && SpecialFunctionDecl->getLocation().isMacroID())
+    return;
 
   // Discard explicitly deleted/defaulted special member functions and those
   // that are not user-provided (automatically generated).
@@ -284,7 +297,7 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
   // expansion locations are reported.
   SourceLocation Location = SpecialFunctionDecl->getLocation();
   if (Location.isMacroID())
-    Location = Body->getLocStart();
+    Location = Body->getBeginLoc();
 
   auto Diag = diag(Location, "use '= default' to define a trivial " +
                                  SpecialFunctionName);

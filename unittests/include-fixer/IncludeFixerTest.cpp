@@ -1,9 +1,8 @@
 //===-- IncludeFixerTest.cpp - Include fixer unit tests -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,8 +23,8 @@ using find_all_symbols::SymbolAndSignals;
 static bool runOnCode(tooling::ToolAction *ToolAction, StringRef Code,
                       StringRef FileName,
                       const std::vector<std::string> &ExtraArgs) {
-  llvm::IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new vfs::InMemoryFileSystem);
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
   llvm::IntrusiveRefCntPtr<FileManager> Files(
       new FileManager(FileSystemOptions(), InMemoryFileSystem));
   // FIXME: Investigate why -fms-compatibility breaks tests.
@@ -196,7 +195,8 @@ TEST(IncludeFixer, ScopedNamespaceSymbols) {
             runIncludeFixer("namespace a {\nb::bar b;\n}"));
   EXPECT_EQ("#include \"bar.h\"\nnamespace A {\na::b::bar b;\n}",
             runIncludeFixer("namespace A {\na::b::bar b;\n}"));
-  EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nvoid func() { b::bar b; }\n}",
+  EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nvoid func() { b::bar b; }\n} "
+            "// namespace a",
             runIncludeFixer("namespace a {\nvoid func() { b::bar b; }\n}"));
   EXPECT_EQ("namespace A { c::b::bar b; }\n",
             runIncludeFixer("namespace A { c::b::bar b; }\n"));
@@ -258,7 +258,8 @@ TEST(IncludeFixer, FixNamespaceQualifiers) {
             runIncludeFixer("namespace a {\nb::bar b;\n}\n"));
   EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nb::bar b;\n}\n",
             runIncludeFixer("namespace a {\nbar b;\n}\n"));
-  EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nnamespace b{\nbar b;\n}\n}\n",
+  EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nnamespace b{\nbar b;\n}\n} "
+            "// namespace a\n",
             runIncludeFixer("namespace a {\nnamespace b{\nbar b;\n}\n}\n"));
   EXPECT_EQ("c::b::bar b;\n",
             runIncludeFixer("c::b::bar b;\n"));
@@ -268,12 +269,12 @@ TEST(IncludeFixer, FixNamespaceQualifiers) {
             runIncludeFixer("namespace c {\nbar b;\n}\n"));
 
   // Test common qualifers reduction.
-  EXPECT_EQ(
-      "#include \"bar.h\"\nnamespace a {\nnamespace d {\nb::bar b;\n}\n}\n",
-      runIncludeFixer("namespace a {\nnamespace d {\nbar b;\n}\n}\n"));
-  EXPECT_EQ(
-      "#include \"bar.h\"\nnamespace d {\nnamespace a {\na::b::bar b;\n}\n}\n",
-      runIncludeFixer("namespace d {\nnamespace a {\nbar b;\n}\n}\n"));
+  EXPECT_EQ("#include \"bar.h\"\nnamespace a {\nnamespace d {\nb::bar b;\n}\n} "
+            "// namespace a\n",
+            runIncludeFixer("namespace a {\nnamespace d {\nbar b;\n}\n}\n"));
+  EXPECT_EQ("#include \"bar.h\"\nnamespace d {\nnamespace a {\na::b::bar "
+            "b;\n}\n} // namespace d\n",
+            runIncludeFixer("namespace d {\nnamespace a {\nbar b;\n}\n}\n"));
 
   // Test nested classes.
   EXPECT_EQ("#include \"bar.h\"\nnamespace d {\na::b::bar::t b;\n}\n",
