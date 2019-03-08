@@ -5,6 +5,7 @@ add_clang_library(clangTidyFPGAModule
   IdDependentBackwardBranchCheck.cpp
   SingleWorkItemBarrierCheck.cpp
   StructPackAlignCheck.cpp
+  UnrollLoopsCheck.cpp
   
   LINK_LIBS
   clangAST

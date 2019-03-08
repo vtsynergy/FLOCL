@@ -1,0 +1,60 @@
+//===--- UnrollLoopsCheck.cpp - clang-tidy --------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "UnrollLoopsCheck.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/ASTMatchers/ASTMatchFinder.h"
+
+using namespace clang::ast_matchers;
+
+namespace clang {
+namespace tidy {
+namespace FPGA {
+
+void UnrollLoopsCheck::registerMatchers(MatchFinder *Finder) {
+  Finder->addMatcher(stmt(
+            anyOf(
+              forStmt(), 
+              whileStmt(), 
+              doStmt())).bind("loop"), this);
+  // Finder->addMatcher(whileStmt().bind("loop"), this); 
+  // Finder->addMatcher(doStmt().bind("loop"), this);
+}
+
+void UnrollLoopsCheck::check(const MatchFinder::MatchResult &Result) {
+  const Stmt *MatchedLoop = Result.Nodes.getNodeAs<Stmt>("loop");
+  ASTContext *Context = Result.Context;
+  checkNeedsUnrolling(MatchedLoop, Context);
+}
+
+bool UnrollLoopsCheck::needsUnrolling(const Stmt *Statement, ASTContext *Context) {
+  const auto parents = Context->getParents(*Statement);
+  for (size_t i = 0; i < parents.size(); ++i) {
+    const auto &parent = parents[i];
+    if (parent.getNodeKind().asStringRef().equals("AttributedStmt")) {
+      const AttributedStmt *parentStmt = parent.get<AttributedStmt>();
+      for (size_t j = 0; j < parentStmt->getAttrs().size(); ++j) {
+        const Attr *attr = parentStmt->getAttrs()[j];
+        if (StringRef("unroll").equals(attr->getSpelling())) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+void UnrollLoopsCheck::checkNeedsUnrolling(const Stmt *Statement, ASTContext *Context) {
+  if (needsUnrolling(Statement, Context)) {
+    diag(Statement->getBeginLoc(), "The performance of the kernel could be improved by unrolling this loop with a #pragma unroll directive");
+  }
+}
+
+} // namespace FPGA
+} // namespace tidy
+} // namespace clang
