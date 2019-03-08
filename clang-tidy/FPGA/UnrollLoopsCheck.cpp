@@ -17,11 +17,13 @@ namespace tidy {
 namespace FPGA {
 
 void UnrollLoopsCheck::registerMatchers(MatchFinder *Finder) {
+  const auto ANYLOOP = anyOf(forStmt(), whileStmt(), doStmt());
   Finder->addMatcher(stmt(
-            anyOf(
-              forStmt(), 
-              whileStmt(), 
-              doStmt())).bind("loop"), this);
+            allOf(
+              ANYLOOP,  // Match all loop types,
+              unless(hasDescendant(forStmt())),
+              unless(hasDescendant(whileStmt())),
+              unless(hasDescendant(doStmt())))).bind("loop"), this);
   // Finder->addMatcher(whileStmt().bind("loop"), this); 
   // Finder->addMatcher(doStmt().bind("loop"), this);
 }
