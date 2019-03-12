@@ -24,8 +24,6 @@ void UnrollLoopsCheck::registerMatchers(MatchFinder *Finder) {
               unless(hasDescendant(forStmt())),
               unless(hasDescendant(whileStmt())),
               unless(hasDescendant(doStmt())))).bind("loop"), this);
-  // Finder->addMatcher(whileStmt().bind("loop"), this); 
-  // Finder->addMatcher(doStmt().bind("loop"), this);
 }
 
 void UnrollLoopsCheck::check(const MatchFinder::MatchResult &Result) {

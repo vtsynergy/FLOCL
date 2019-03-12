@@ -15,7 +15,8 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
-/// FIXME: Write a short description.
+/// Finds for, while and do..while loop statements that have not been unrolled.
+/// Unrolling these loops could increase the performance of the OpenCL kernel.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-unroll-loops.html
@@ -26,15 +27,11 @@ public:
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
-  /**
-   * Performs the check that determines whether or not a loop statement
-   * needs unrolling, and prints the diagnostic message if it does
-   */
+  /// Performs the check that determines whether or not a loop statement
+  /// needs unrolling, and prints the diagnostic message if it does
   void checkNeedsUnrolling(const Stmt* Statement, ASTContext *Context);
-  /**
-   * Returns True if the given statement does not have a parent that's an
-   * AttributedStmt with an attribute named "unroll".
-   */
+  /// Returns True if the given statement does not have a parent that's an
+  /// AttributedStmt with an attribute named "unroll".
   bool needsUnrolling(const Stmt* Statement, ASTContext *Context);
 };
 
