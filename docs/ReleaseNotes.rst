@@ -67,6 +67,12 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New :doc:`FPGA-unroll-loops
+  <clang-tidy/checks/FPGA-unroll-loops>` check.
+
+  Checks for inner loops that aren't unrolled. Unrolling these loops could improve
+  the performance of OpenCL kernels.
+
 - New :doc:`abseil-duration-addition
   <clang-tidy/checks/abseil-duration-addition>` check.
 
