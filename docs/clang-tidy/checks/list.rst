@@ -8,6 +8,7 @@ Clang-Tidy Checks
    FPGA-kernel-name-restriction
    FPGA-struct-pack-align
    OpenCL-possibly-unreachable-barrier
+   OpenCL-recursion-not-supported
    abseil-duration-addition
    abseil-duration-comparison
    abseil-duration-conversion-cast
