@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS support)
 add_clang_library(clangTidyOpenCLModule
   OpenCLTidyModule.cpp
   PossiblyUnreachableBarrierCheck.cpp
+  RecursionNotSupportedCheck.cpp
   
   LINK_LIBS
   clangAST
