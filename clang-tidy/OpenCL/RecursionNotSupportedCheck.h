@@ -31,7 +31,7 @@ private:
   std::map<std::string, std::vector<std::string>> Callees;
   std::map<std::string, SourceRange> Locations;
   void handleFunctionDecl(const FunctionDecl *functionDecl);
-  void handleFunctionCall(const DeclRefExpr *functionCall);
+  void handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager);
   bool isCalledIn(const DeclRefExpr *functionCall, std::string &functionName);
 };
 

@@ -28,8 +28,9 @@ void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
   if (MatchedFunDecl) {
     handleFunctionDecl(MatchedFunDecl);
   } else {
-    std::string functionCallName = MatchedFunCall->getNameInfo().getName().getAsString();
-    diag(MatchedFunCall->getLocation(), "functionCall is made here");
+    handleFunctionCall(MatchedFunCall, Result.SourceManager);
+    // std::string functionCallName = MatchedFunCall->getNameInfo().getName().getAsString();
+    // diag(MatchedFunCall->getLocation(), "functionCall is made here");
   }
   
 }
@@ -37,12 +38,24 @@ void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
 void RecursionNotSupportedCheck::handleFunctionDecl(const FunctionDecl *functionDecl) {
   std::string functionDeclName = functionDecl->getNameInfo().getName().getAsString();
   diag(functionDecl->getLocation(), "function %0 is declared here")
-      << functionDecl;
+      << functionDeclName;
   Locations[functionDeclName] = functionDecl->getSourceRange();
 }
 
-void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *functionCall) {
-
+void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager) {
+  std::string functionCallName = functionCall->getNameInfo().getName().getAsString();
+  diag(functionCall->getLocation(), "function %0 is called here")
+      << functionCallName;
+  auto iter = Callees.find(functionCallName);
+  if (iter == Callees.end()) {  // First instance of a call to this function
+    Callees[functionCallName] = std::vector<std::string>();
+  }
+  // TODO: Find all callees of said function
+  for (auto functionDecl = Locations.begin(); functionDecl != Locations.end(); functionDecl++) {
+    if (isPointWithin(functionCall->getLocation(), functionDecl->second.getBegin(), functionDecl->second.getEnd())) {
+      Callees[functionCallName].push_back(functionDecl->first);
+    }
+  }
 }
 
 bool RecursionNotSupportedCheck::isCalledIn(const DeclRefExpr *functionCall, std::string &functionName) {
