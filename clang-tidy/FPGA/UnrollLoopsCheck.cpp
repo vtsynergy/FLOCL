@@ -39,7 +39,14 @@ bool UnrollLoopsCheck::needsUnrolling(const Stmt *Statement, ASTContext *Context
     if (parent.getNodeKind().asStringRef().equals("AttributedStmt")) {
       const AttributedStmt *parentStmt = parent.get<AttributedStmt>();
       for (size_t j = 0; j < parentStmt->getAttrs().size(); ++j) {
-        const Attr *attr = parentStmt->getAttrs()[j];
+        auto *attr = parentStmt->getAttrs()[j];
+        const LoopHintAttr *loopHintAttr;
+        if (loopHintAttr = static_cast<const LoopHintAttr*>(attr)) {
+          if (loopHintAttr->getState() == LoopHintAttr::Numeric) {
+            diag(loopHintAttr->getLocation(), "LoopHintAttr has a numeric state");//"Found a loop hint attribute!");
+          }
+        }
+        // diag(attr->getLocation(), typeid(*attr).name());
         if (StringRef("unroll").equals(attr->getSpelling())) {
           return false;
         }
