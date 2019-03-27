@@ -27,12 +27,18 @@ public:
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
+  /// The kind of unrolling, if any, applied to a given loop
+  enum UnrollType { 
+    NotUnrolled, // This loop has no #pragma unroll directive associated with it
+    FullyUnrolled, // This loop has a #pragma unroll directive associated with it
+    PartiallyUnrolled // This loop has a #pragma unroll <num> directive associated with it
+  };
   /// Performs the check that determines whether or not a loop statement
   /// needs unrolling, and prints the diagnostic message if it does
   void checkNeedsUnrolling(const Stmt* Statement, ASTContext *Context);
-  /// Returns True if the given statement does not have a parent that's an
-  /// AttributedStmt with an attribute named "unroll".
-  bool needsUnrolling(const Stmt* Statement, ASTContext *Context);
+  /// Returns the type of unrolling, if any, associated with the given 
+  /// statement..
+  enum UnrollType unrollType(const Stmt* Statement, ASTContext *Context);
 };
 
 } // namespace FPGA

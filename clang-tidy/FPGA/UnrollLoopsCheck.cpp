@@ -32,7 +32,7 @@ void UnrollLoopsCheck::check(const MatchFinder::MatchResult &Result) {
   checkNeedsUnrolling(MatchedLoop, Context);
 }
 
-bool UnrollLoopsCheck::needsUnrolling(const Stmt *Statement, ASTContext *Context) {
+enum UnrollLoopsCheck::UnrollType UnrollLoopsCheck::unrollType(const Stmt *Statement, ASTContext *Context) {
   const auto parents = Context->getParents(*Statement);
   for (size_t i = 0; i < parents.size(); ++i) {
     const auto &parent = parents[i];
@@ -43,22 +43,40 @@ bool UnrollLoopsCheck::needsUnrolling(const Stmt *Statement, ASTContext *Context
         const LoopHintAttr *loopHintAttr;
         if (loopHintAttr = static_cast<const LoopHintAttr*>(attr)) {
           if (loopHintAttr->getState() == LoopHintAttr::Numeric) {
-            diag(loopHintAttr->getLocation(), "LoopHintAttr has a numeric state");//"Found a loop hint attribute!");
+            // diag(loopHintAttr->getLocation(), "LoopHintAttr has a numeric state");
+            return PartiallyUnrolled;
+          }
+          if (loopHintAttr->getState() == LoopHintAttr::Disable) {
+            return NotUnrolled;
+          }
+          if (loopHintAttr->getState() == LoopHintAttr::Full) {
+            return FullyUnrolled;
+          }
+          if (loopHintAttr->getState() == LoopHintAttr::Enable) {
+            return FullyUnrolled;
           }
         }
+        
         // diag(attr->getLocation(), typeid(*attr).name());
-        if (StringRef("unroll").equals(attr->getSpelling())) {
-          return false;
-        }
+        // if (StringRef("unroll").equals(attr->getSpelling())) {
+        //   return false;
+        // }
       }
     }
   }
-  return true;
+  return NotUnrolled;
 }
 
 void UnrollLoopsCheck::checkNeedsUnrolling(const Stmt *Statement, ASTContext *Context) {
-  if (needsUnrolling(Statement, Context)) {
+  UnrollType unroll = unrollType(Statement, Context);
+  if (unroll == NotUnrolled) {
     diag(Statement->getBeginLoc(), "The performance of the kernel could be improved by unrolling this loop with a #pragma unroll directive");
+  }
+  if (unroll == PartiallyUnrolled) {
+    diag(Statement->getBeginLoc(), "This loop is partially unrolled, all's good");
+  }
+  if (unroll == FullyUnrolled) {
+    diag(Statement->getBeginLoc(), "This loop is fully unrolled, check for edge cases");
   }
 }
 
