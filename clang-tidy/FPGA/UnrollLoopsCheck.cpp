@@ -41,9 +41,8 @@ enum UnrollLoopsCheck::UnrollType UnrollLoopsCheck::unrollType(const Stmt *State
       for (size_t j = 0; j < parentStmt->getAttrs().size(); ++j) {
         auto *attr = parentStmt->getAttrs()[j];
         const LoopHintAttr *loopHintAttr;
-        if (loopHintAttr = static_cast<const LoopHintAttr*>(attr)) {
+        if ((loopHintAttr = static_cast<const LoopHintAttr*>(attr))) {
           if (loopHintAttr->getState() == LoopHintAttr::Numeric) {
-            // diag(loopHintAttr->getLocation(), "LoopHintAttr has a numeric state");
             return PartiallyUnrolled;
           }
           if (loopHintAttr->getState() == LoopHintAttr::Disable) {
@@ -56,11 +55,6 @@ enum UnrollLoopsCheck::UnrollType UnrollLoopsCheck::unrollType(const Stmt *State
             return FullyUnrolled;
           }
         }
-        
-        // diag(attr->getLocation(), typeid(*attr).name());
-        // if (StringRef("unroll").equals(attr->getSpelling())) {
-        //   return false;
-        // }
       }
     }
   }
@@ -76,8 +70,52 @@ void UnrollLoopsCheck::checkNeedsUnrolling(const Stmt *Statement, ASTContext *Co
     diag(Statement->getBeginLoc(), "This loop is partially unrolled, all's good");
   }
   if (unroll == FullyUnrolled) {
-    diag(Statement->getBeginLoc(), "This loop is fully unrolled, check for edge cases");
+    if (!hasKnownBounds(Statement)) {
+      diag(Statement->getBeginLoc(), "Full unrolling was requested, but loop bounds are not known. To partially unroll this loop, using the #pragma unroll <num> directive");
+    } else {
+      diag(Statement->getBeginLoc(), "This loop is fully unrolled, check for edge cases");
+    }
   }
+}
+
+bool UnrollLoopsCheck::hasKnownBounds(const Stmt* Statement) {
+  const Expr *condExpr = getCondExpr(Statement);
+  if (!condExpr) {
+    return false; //diag(Statement->getBeginLoc(), statementClassName);
+  } 
+  if (std::string(condExpr->getStmtClassName()).compare("BinaryOperator") == 0) {
+    const BinaryOperator* binaryOp = static_cast<const BinaryOperator*>(condExpr);
+    const Expr* lhs = binaryOp->getLHS();
+    const Expr* rhs = binaryOp->getRHS();
+    if (lhs->isValueDependent() && rhs->isValueDependent()) {
+      diag(binaryOp->getExprLoc(), "Has two value-dependent sides");
+      return false;  // Both sides are value dependent, so we don't know the loop bounds.
+    }
+    return true;  // At least 1 side isn't value dependent, so we know the loop bounds.
+  }
+  return false;  // If it's not a binary operator, we don't know the loop bounds.
+}
+
+const Expr* UnrollLoopsCheck::getCondExpr(const Stmt* Statement) {
+  const Expr *condExpr;
+  std::string statementClassName = Statement->getStmtClassName();
+  if (statementClassName.compare("ForStmt") == 0) {
+    const ForStmt *forStmt = static_cast<const ForStmt*>(Statement);
+    condExpr = forStmt->getCond();
+  }
+  if (statementClassName.compare("WhileStmt") == 0) {
+    const WhileStmt *whileStmt = static_cast<const WhileStmt*>(Statement);
+    condExpr = whileStmt->getCond();
+  }
+  if (statementClassName.compare("DoStmt") == 0) {
+    const DoStmt *doStmt = static_cast<const DoStmt*>(Statement);
+    condExpr = doStmt->getCond();
+  }
+  return condExpr;
+}
+
+void UnrollLoopsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "loop_iterations", loop_iterations);
 }
 
 } // namespace FPGA

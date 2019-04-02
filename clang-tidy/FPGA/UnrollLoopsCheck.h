@@ -21,9 +21,12 @@ namespace FPGA {
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-unroll-loops.html
 class UnrollLoopsCheck : public ClangTidyCheck {
+const unsigned loop_iterations;
+
 public:
   UnrollLoopsCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+      : ClangTidyCheck(Name, Context),
+    loop_iterations(Options.get("loop_iterations", 1000U)) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
@@ -37,8 +40,14 @@ private:
   /// needs unrolling, and prints the diagnostic message if it does
   void checkNeedsUnrolling(const Stmt* Statement, ASTContext *Context);
   /// Returns the type of unrolling, if any, associated with the given 
-  /// statement..
+  /// statement.
   enum UnrollType unrollType(const Stmt* Statement, ASTContext *Context);
+  /// Returns the condition expression within a given for statement. If there is none,
+  /// or if the Statement is not a loop, then returns a NULL pointer.
+  const Expr* getCondExpr(const Stmt* Statement);
+  /// Returns True if the loop statement has known bounds
+  bool hasKnownBounds(const Stmt* Statement);
+  void storeOptions(ClangTidyOptions::OptionMap &Opts);
 };
 
 } // namespace FPGA
