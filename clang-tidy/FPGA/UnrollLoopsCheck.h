@@ -26,7 +26,7 @@ const unsigned loop_iterations;
 public:
   UnrollLoopsCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context),
-    loop_iterations(Options.get("loop_iterations", 1000U)) {}
+    loop_iterations(Options.get("loop_iterations", 100U)) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
@@ -38,7 +38,11 @@ private:
   };
   /// Performs the check that determines whether or not a loop statement
   /// needs unrolling, and prints the diagnostic message if it does
-  void checkNeedsUnrolling(const Stmt* Statement, ASTContext *Context);
+//  void checkNeedsUnrolling(const Stmt* Statement, ASTContext *Context);
+  /// Returns true if the given loop statement has a large number of iterations,
+  /// as determined by the integer value in the loop's condition expression, 
+  /// if one exists.
+  bool hasLargeNumIterations(const Stmt* Statement, const ASTContext* Context);
   /// Returns the type of unrolling, if any, associated with the given 
   /// statement.
   enum UnrollType unrollType(const Stmt* Statement, ASTContext *Context);

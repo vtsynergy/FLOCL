@@ -28,9 +28,32 @@ void UnrollLoopsCheck::registerMatchers(MatchFinder *Finder) {
 
 void UnrollLoopsCheck::check(const MatchFinder::MatchResult &Result) {
   const Stmt *MatchedLoop = Result.Nodes.getNodeAs<Stmt>("loop");
-  ASTContext *Context = Result.Context;
-  checkNeedsUnrolling(MatchedLoop, Context);
+  const ASTContext *Context = Result.Context;
+  // checkNeedsUnrolling(MatchedLoop, Context);
+  UnrollType unroll = unrollType(MatchedLoop, Result.Context);
+  if (unroll == NotUnrolled) {
+    diag(MatchedLoop->getBeginLoc(), "The performance of the kernel could be improved by unrolling this loop with a #pragma unroll directive");
+    return;
+  }
+  if (unroll == PartiallyUnrolled) {
+    diag(MatchedLoop->getBeginLoc(), "This loop is partially unrolled, all's good");
+    return;
+  }
+  if (unroll == FullyUnrolled) {
+    if (hasKnownBounds(MatchedLoop)) {
+      if (hasLargeNumIterations(MatchedLoop, Context)) {
+        diag(MatchedLoop->getBeginLoc(), "This loop likely has a large number of iterations and thus cannot be fully unrolled. To partially unroll this loop, use the #pragma unroll <num> directive");
+        return;
+      }
+      diag(MatchedLoop->getBeginLoc(), "Full unrolling should be successful. All good.");
+      return;
+    }
+    diag(MatchedLoop->getBeginLoc(), "Full unrolling was requested, but loop bounds are not known. To partially unroll this loop, using the #pragma unroll <num> directive");
+  }
 }
+
+// void UnrollLoopsCheck::checkNeedsUnrolling(const Stmt *Statement, ASTContext *Context) {
+// }
 
 enum UnrollLoopsCheck::UnrollType UnrollLoopsCheck::unrollType(const Stmt *Statement, ASTContext *Context) {
   const auto parents = Context->getParents(*Statement);
@@ -61,23 +84,6 @@ enum UnrollLoopsCheck::UnrollType UnrollLoopsCheck::unrollType(const Stmt *State
   return NotUnrolled;
 }
 
-void UnrollLoopsCheck::checkNeedsUnrolling(const Stmt *Statement, ASTContext *Context) {
-  UnrollType unroll = unrollType(Statement, Context);
-  if (unroll == NotUnrolled) {
-    diag(Statement->getBeginLoc(), "The performance of the kernel could be improved by unrolling this loop with a #pragma unroll directive");
-  }
-  if (unroll == PartiallyUnrolled) {
-    diag(Statement->getBeginLoc(), "This loop is partially unrolled, all's good");
-  }
-  if (unroll == FullyUnrolled) {
-    if (!hasKnownBounds(Statement)) {
-      diag(Statement->getBeginLoc(), "Full unrolling was requested, but loop bounds are not known. To partially unroll this loop, using the #pragma unroll <num> directive");
-    } else {
-      diag(Statement->getBeginLoc(), "This loop is fully unrolled, check for edge cases");
-    }
-  }
-}
-
 bool UnrollLoopsCheck::hasKnownBounds(const Stmt* Statement) {
   const Expr *condExpr = getCondExpr(Statement);
   if (!condExpr) {
@@ -90,6 +96,10 @@ bool UnrollLoopsCheck::hasKnownBounds(const Stmt* Statement) {
     if (lhs->isValueDependent() && rhs->isValueDependent()) {
       diag(binaryOp->getExprLoc(), "Has two value-dependent sides");
       return false;  // Both sides are value dependent, so we don't know the loop bounds.
+    }
+    if (!(lhs->isValueDependent()) && !(rhs->isValueDependent())) {
+      diag(binaryOp->getExprLoc(), "Has two constant valued sides");
+      return false;  // Both sides are constant, so it's likely an infinite loop.
     }
     return true;  // At least 1 side isn't value dependent, so we know the loop bounds.
   }
@@ -112,6 +122,43 @@ const Expr* UnrollLoopsCheck::getCondExpr(const Stmt* Statement) {
     condExpr = doStmt->getCond();
   }
   return condExpr;
+}
+
+bool UnrollLoopsCheck::hasLargeNumIterations(const Stmt* Statement, const ASTContext* Context) {
+  const Expr *condExpr = getCondExpr(Statement);
+  if (!condExpr) {
+    return false; //diag(Statement->getBeginLoc(), statementClassName);
+  } 
+  if (std::string(condExpr->getStmtClassName()).compare("BinaryOperator") == 0) {
+    const BinaryOperator* binaryOp = static_cast<const BinaryOperator*>(condExpr);
+    const Expr* lhs = binaryOp->getLHS();
+    const Expr* rhs = binaryOp->getRHS();
+    Expr::EvalResult result;
+    // const ASTContext context = ASTContext(&Context);
+    if (lhs->isValueDependent() && !(rhs->isValueDependent())) {
+      if (rhs->EvaluateAsRValue(result, *Context)) {
+        if (!(result.Val.isInt())) {
+          return false;  // Cannot check number of iterations, return false to be safe
+        }
+        if (result.Val.getInt() > loop_iterations) {
+          return true;  // Assumes values go from 0 to Val in increments of 1
+        }
+        return false;  // Number of iterations likely less than option
+      }
+    }
+    if (rhs->isValueDependent() && !(lhs->isValueDependent())) {
+      if (lhs->EvaluateAsRValue(result, *Context)) {
+        if (!(result.Val.isInt())) {
+          return false;  // Cannot check number of iterations, return false to be safe
+        }
+        if (result.Val.getInt() > loop_iterations) {
+          return true;  // Assumes values go from 0 to Val in increments of 1
+        }
+        return false;  // Number of iterations likely less than option
+      }
+    }
+  }
+  return false;  // Cannot check number of iteration, return false to be safe
 }
 
 void UnrollLoopsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
