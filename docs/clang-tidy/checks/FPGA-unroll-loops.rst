@@ -59,3 +59,13 @@ As per the "Altera SDK for OpenCL Best Practices Guide".
       someVector[i]++;
    }
 
+Options
+-------
+
+.. option:: max_loop_iterations
+
+   Defines the maximum number of loop iterations that a fully unrolled loop
+   can have.
+
+   In practice, this refers to the integer value of the upper bound
+   within the loop statement's condition expression.
