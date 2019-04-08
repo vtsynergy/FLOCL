@@ -71,7 +71,15 @@ Improvements to clang-tidy
   <clang-tidy/checks/FPGA-unroll-loops>` check.
 
   Checks for inner loops that aren't unrolled. Unrolling these loops could improve
-  the performance of OpenCL kernels.
+  the performance of OpenCL kernels. Also checks for fully unrolled loops with a
+  large number of iterations or unknown bounds. These loops cannot be fully 
+  unrolled, and should be partially unrolled.
+
+- New :doc:`FPGA-kernel-name-restriction
+  <clang-tidy/checks/FPGA-kernel-name-restriction>` check.
+
+  Checks for cases where the kernel source file is named "kernel.cl",
+  "Verilog.cl", or "VHDL.cl".
 
 - New :doc:`abseil-duration-addition
   <clang-tidy/checks/abseil-duration-addition>` check.

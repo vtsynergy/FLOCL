@@ -11,6 +11,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "IdDependentBackwardBranchCheck.h"
+#include "KernelNameRestrictionCheck.h"
 #include "SingleWorkItemBarrierCheck.h"
 #include "StructPackAlignCheck.h"
 #include "UnrollLoopsCheck.h"
@@ -27,6 +28,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<IdDependentBackwardBranchCheck>(
         "FPGA-ID-dependent-backward-branch");
+    CheckFactories.registerCheck<KernelNameRestrictionCheck>(
+        "FPGA-kernel-name-restriction");
     CheckFactories.registerCheck<SingleWorkItemBarrierCheck>(
         "FPGA-single-work-item-barrier");
     CheckFactories.registerCheck<StructPackAlignCheck>(
