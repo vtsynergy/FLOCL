@@ -43,10 +43,9 @@ void UnrollLoopsCheck::check(const MatchFinder::MatchResult &Result) {
         diag(MatchedLoop->getBeginLoc(), "This loop likely has a large number of iterations and thus cannot be fully unrolled. To partially unroll this loop, use the #pragma unroll <num> directive");
         return;
       }
-      diag(MatchedLoop->getBeginLoc(), "Full unrolling should be successful. All good.");
       return;
     }
-    diag(MatchedLoop->getBeginLoc(), "Full unrolling was requested, but loop bounds are not known. To partially unroll this loop, using the #pragma unroll <num> directive");
+    diag(MatchedLoop->getBeginLoc(), "Full unrolling was requested, but loop bounds are not known. To partially unroll this loop, use the #pragma unroll <num> directive");
   }
 }
 
