@@ -32,7 +32,7 @@ private:
   std::map<std::string, SourceRange> Locations;
   void handleFunctionDecl(const FunctionDecl *functionDecl);
   void handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager);
-  bool isCalledIn(const DeclRefExpr *functionCall, std::string &functionName);
+  bool isRecursive(std::string &functionCallName, std::string &callerName, int depth);
 };
 
 } // namespace OpenCL

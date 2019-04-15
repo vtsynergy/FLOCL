@@ -44,23 +44,38 @@ void RecursionNotSupportedCheck::handleFunctionDecl(const FunctionDecl *function
 
 void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager) {
   std::string functionCallName = functionCall->getNameInfo().getName().getAsString();
-  diag(functionCall->getLocation(), "function %0 is called here")
-      << functionCallName;
+  // Update Callees map
   auto iter = Callees.find(functionCallName);
   if (iter == Callees.end()) {  // First instance of a call to this function
     Callees[functionCallName] = std::vector<std::string>();
   }
-  // TODO: Find all callees of said function
   for (auto functionDecl = Locations.begin(); functionDecl != Locations.end(); functionDecl++) {
-    if (isPointWithin(functionCall->getLocation(), functionDecl->second.getBegin(), functionDecl->second.getEnd())) {
+    if (sourceManager->isPointWithin(functionCall->getLocation(), functionDecl->second.getBegin(), functionDecl->second.getEnd())) {
       Callees[functionCallName].push_back(functionDecl->first);
     }
   }
+  // Check if function call is recursive
+  if (isRecursive(functionCallName, functionCallName, 5)) {
+    diag(functionCall->getBeginLoc(), "The call to function %0 is recursive, which is not supported by OpenCL.", DiagnosticIDs::Error)
+        << functionCallName;
+  }
 }
 
-bool RecursionNotSupportedCheck::isCalledIn(const DeclRefExpr *functionCall, std::string &functionName) {
-
+bool RecursionNotSupportedCheck::isRecursive(std::string &functionCallName, std::string &callerName, int depth) {
+  if (depth == 0) {
+    return false;
+  }
+  for(std::string &caller: Callees[callerName]) {
+    if (caller.compare(functionCallName) == 0) {
+      return true;
+    }
+    if (isRecursive(functionCallName, caller, depth-1)) {
+      return true;
+    }
+  }
+  return false;
 }
+
 
 } // namespace OpenCL
 } // namespace tidy
