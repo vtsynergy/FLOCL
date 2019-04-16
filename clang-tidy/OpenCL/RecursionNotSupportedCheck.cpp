@@ -37,21 +37,19 @@ void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
 
 void RecursionNotSupportedCheck::handleFunctionDecl(const FunctionDecl *functionDecl) {
   std::string functionDeclName = functionDecl->getNameInfo().getName().getAsString();
-  diag(functionDecl->getLocation(), "function %0 is declared here")
-      << functionDeclName;
   Locations[functionDeclName] = functionDecl->getSourceRange();
 }
 
 void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager) {
   std::string functionCallName = functionCall->getNameInfo().getName().getAsString();
   // Update Callees map
-  auto iter = Callees.find(functionCallName);
-  if (iter == Callees.end()) {  // First instance of a call to this function
-    Callees[functionCallName] = std::vector<std::string>();
+  auto iter = Callers.find(functionCallName);
+  if (iter == Callers.end()) {  // First instance of a call to this function
+    Callers[functionCallName] = std::vector<std::pair<SourceLocation,std::string>>();
   }
   for (auto functionDecl = Locations.begin(); functionDecl != Locations.end(); functionDecl++) {
     if (sourceManager->isPointWithin(functionCall->getLocation(), functionDecl->second.getBegin(), functionDecl->second.getEnd())) {
-      Callees[functionCallName].push_back(functionDecl->first);
+      Callers[functionCallName].push_back(std::make_pair(functionCall->getBeginLoc(), functionDecl->first));
     }
   }
   // Check if function call is recursive
@@ -65,11 +63,12 @@ bool RecursionNotSupportedCheck::isRecursive(std::string &functionCallName, std:
   if (depth == 0) {
     return false;
   }
-  for(std::string &caller: Callees[callerName]) {
-    if (caller.compare(functionCallName) == 0) {
+  for(std::pair<SourceLocation,std::string> &caller: Callers[callerName]) {
+    if (caller.second.compare(functionCallName) == 0) {
+      // Try adding note here
       return true;
     }
-    if (isRecursive(functionCallName, caller, depth-1)) {
+    if (isRecursive(functionCallName, caller.second, depth-1)) {
       return true;
     }
   }
