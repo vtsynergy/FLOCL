@@ -32,7 +32,8 @@ private:
   std::map<std::string, SourceRange> Locations;
   void handleFunctionDecl(const FunctionDecl *functionDecl);
   void handleFunctionCall(const DeclRefExpr *functionCall, const SourceManager *sourceManager);
-  bool isRecursive(std::string &functionCallName, std::string &callerName, int depth);
+  std::string isRecursive(std::string &functionCallName, std::string &callerName, int depth);
+  std::string buildStringPath(std::string &functionCallName, std::string &callerName, int depth);
 };
 
 } // namespace OpenCL

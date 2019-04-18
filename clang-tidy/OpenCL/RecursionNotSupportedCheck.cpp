@@ -9,6 +9,7 @@
 #include "RecursionNotSupportedCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include <sstream>
 
 using namespace clang::ast_matchers;
 
@@ -29,8 +30,6 @@ void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
     handleFunctionDecl(MatchedFunDecl);
   } else {
     handleFunctionCall(MatchedFunCall, Result.SourceManager);
-    // std::string functionCallName = MatchedFunCall->getNameInfo().getName().getAsString();
-    // diag(MatchedFunCall->getLocation(), "functionCall is made here");
   }
   
 }
@@ -53,26 +52,41 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *functionC
     }
   }
   // Check if function call is recursive
-  if (isRecursive(functionCallName, functionCallName, 5)) {
+  std::string recursivePath = isRecursive(functionCallName, functionCallName, 0);
+  if (!recursivePath.empty()) {
     diag(functionCall->getBeginLoc(), "The call to function %0 is recursive, which is not supported by OpenCL.", DiagnosticIDs::Error)
         << functionCallName;
+    diag(functionCall->getBeginLoc(), recursivePath, DiagnosticIDs::Note);
   }
 }
 
-bool RecursionNotSupportedCheck::isRecursive(std::string &functionCallName, std::string &callerName, int depth) {
-  if (depth == 0) {
-    return false;
+std::string RecursionNotSupportedCheck::isRecursive(std::string &functionCallName, std::string &callerName, int depth) {
+  if (depth == 5) {
+    return "";
   }
   for(std::pair<SourceLocation,std::string> &caller: Callers[callerName]) {
     if (caller.second.compare(functionCallName) == 0) {
       // Try adding note here
-      return true;
+      return buildStringPath(callerName, functionCallName, depth);
     }
-    if (isRecursive(functionCallName, caller.second, depth-1)) {
-      return true;
+    std::string stringPath = isRecursive(functionCallName, caller.second, depth+1);
+    if (!stringPath.empty()) {
+      std::ostringstream stringStream;
+      stringStream << buildStringPath(callerName, caller.second, depth) << std::endl << stringPath;
+      return stringStream.str();
     }
   }
-  return false;
+  return "";
+}
+
+std::string RecursionNotSupportedCheck::buildStringPath(std::string &functionCallName, std::string &callerName, int depth) {
+  std::ostringstream stringStream;
+  for (int i = 0; i < depth+1; ++i) {
+    stringStream << "\t";
+  }
+  stringStream << "function " << functionCallName << " is called by function " << callerName;
+  std::string stringPath = stringStream.str();
+  return stringPath;
 }
 
 
