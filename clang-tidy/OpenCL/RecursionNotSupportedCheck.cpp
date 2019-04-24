@@ -101,8 +101,10 @@ std::string RecursionNotSupportedCheck::buildStringPath(
   std::pair<FileID, unsigned> FileOffset = SM->getDecomposedLoc(Loc);
   std::string FilePath = SM->getFileEntryForID(
       FileOffset.first)->tryGetRealPathName();
+  unsigned LineNum = SM->getLineNumber(FileOffset.first, FileOffset.second);
+  unsigned ColNum = SM->getColumnNumber(FileOffset.first, FileOffset.second);
   StringStream << FunCallName << " is called by " << CallerName << " in "
-      << FilePath;
+      << FilePath << ":" << LineNum << ":" << ColNum;
   std::string StringPath = StringStream.str();
   return StringPath;
 }
