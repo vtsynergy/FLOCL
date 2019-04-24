@@ -68,7 +68,7 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
 }
 
 std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName, 
-    std::string &CallerName, int Depth) {
+    std::string &CallerName, unsigned Depth) {
   if (Depth == MaxRecursionDepth) {
     return "";
   }
@@ -89,7 +89,7 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
 }
 
 std::string RecursionNotSupportedCheck::buildStringPath(
-    std::string &FunCallName, std::string &CallerName, int Depth) {
+    std::string &FunCallName, std::string &CallerName, unsigned Depth) {
   std::ostringstream StringStream;
   while (Depth > 0) {
     StringStream << "\t";
