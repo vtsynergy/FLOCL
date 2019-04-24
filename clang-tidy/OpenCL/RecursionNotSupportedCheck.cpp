@@ -61,9 +61,9 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
   if (!RecursivePath.empty()) {
     diag(FunCall->getBeginLoc(), 
          "The call to function %0 is recursive, which is not supported by "
-         "OpenCL.", DiagnosticIDs::Error)
-        << FunCallName;
-    diag(FunCall->getBeginLoc(), RecursivePath, DiagnosticIDs::Note);
+         "OpenCL.\n%1", DiagnosticIDs::Error)
+        << FunCallName << RecursivePath;
+    // diag(FunCall->getBeginLoc(), RecursivePath, DiagnosticIDs::Note);
   }
 }
 
@@ -75,15 +75,15 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
   for(std::pair<SourceLocation,std::string> &Caller : Callers[CallerName]) {
     if (Caller.second.compare(FunCallName) == 0) {
       // Try adding note here
-      return buildStringPath(CallerName, FunCallName, Depth, SM, Caller.first);
+      return buildStringPath(CallerName, FunCallName, SM, Caller.first);
     }
     std::string StringPath = isRecursive(FunCallName, Caller.second, Depth+1,
                                          SM);
     if (!StringPath.empty()) {
       std::ostringstream StringStream;
-      StringStream << buildStringPath(CallerName, Caller.second, Depth, SM,
+      StringStream << buildStringPath(CallerName, Caller.second, SM,
                                       Caller.first) 
-          << "\n\n" << StringPath;
+          << "\n" << StringPath;
       return StringStream.str();
     }
   }
@@ -91,13 +91,10 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
 }
 
 std::string RecursionNotSupportedCheck::buildStringPath(
-    std::string &FunCallName, std::string &CallerName, unsigned Depth,
-    const SourceManager *SM, SourceLocation Loc) {
+    std::string &FunCallName, std::string &CallerName, const SourceManager *SM,
+    SourceLocation Loc) {
   std::ostringstream StringStream;
-  while (Depth > 0) {
-    StringStream << "\t";
-    Depth--;
-  }
+  StringStream << "\t";
   std::pair<FileID, unsigned> FileOffset = SM->getDecomposedLoc(Loc);
   std::string FilePath = SM->getFileEntryForID(
       FileOffset.first)->tryGetRealPathName();

@@ -55,7 +55,7 @@ private:
       unsigned Depth, const SourceManager *SM);
   /// Helper function that builds a portion of the recursion path. 
   std::string buildStringPath(std::string &FunCallName, std::string &CallerName,
-      unsigned Depth, const SourceManager *SM, SourceLocation Loc);
+      const SourceManager *SM, SourceLocation Loc);
   void storeOptions(ClangTidyOptions::OptionMap &Opts);
 };
 
