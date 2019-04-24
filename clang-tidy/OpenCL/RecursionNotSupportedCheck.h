@@ -25,7 +25,7 @@ namespace OpenCL {
 /// deep the recursive function goes to look for recursive function calls.
 ///
 /// For the user-facing documentation see:
-/// clang.llvm.org/extra/clang-tidy/checks/OpenCL-recursion-not-supported.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/OpenCL-recursion-not-supported.html
 class RecursionNotSupportedCheck : public ClangTidyCheck {
 const unsigned MaxRecursionDepth;
 
@@ -49,11 +49,11 @@ private:
   /// check for whether or not the function call is recursive.
   void handleFunctionCall(const DeclRefExpr *FunCall, const SourceManager *SM);
   /// Checks if the current function call is recursive, and returns the
-  /// recursion path as a string parameter. If the function call is not
+  /// recursion path as a traceback-like string. If the function call is not
   /// recursive, returns an empty string.
   std::string isRecursive(std::string &FunCallName, std::string &CallerName,
       unsigned Depth, const SourceManager *SM);
-  /// Helper function that builds a portion of the recursion path. 
+  /// Builds a single traceback-line line of the recursion path. 
   std::string buildStringPath(std::string &FunCallName, std::string &CallerName,
       const SourceManager *SM, SourceLocation Loc);
   void storeOptions(ClangTidyOptions::OptionMap &Opts);
