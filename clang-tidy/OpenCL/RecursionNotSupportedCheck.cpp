@@ -19,12 +19,13 @@ namespace OpenCL {
 
 void RecursionNotSupportedCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(functionDecl().bind("functionDecl"), this);
-  Finder->addMatcher(declRefExpr(to(functionDecl())).bind("functionCall"), this);
+  Finder->addMatcher(
+      declRefExpr(to(functionDecl())).bind("functionCall"), this);
 }
 
 void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
-  const FunctionDecl *MatchedFunDecl = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
-  const DeclRefExpr *MatchedFunCall = Result.Nodes.getNodeAs<DeclRefExpr>("functionCall");
+  auto MatchedFunDecl = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
+  auto MatchedFunCall = Result.Nodes.getNodeAs<DeclRefExpr>("functionCall");
 
   if (MatchedFunDecl) {
     handleFunctionDecl(MatchedFunDecl);
@@ -34,34 +35,41 @@ void RecursionNotSupportedCheck::check(const MatchFinder::MatchResult &Result) {
   
 }
 
-void RecursionNotSupportedCheck::handleFunctionDecl(const FunctionDecl *FunDecl) {
+void RecursionNotSupportedCheck::handleFunctionDecl(
+    const FunctionDecl *FunDecl) {
   std::string FunDeclName = FunDecl->getNameInfo().getName().getAsString();
   Locations[FunDeclName] = FunDecl->getSourceRange();
 }
 
-void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall, const SourceManager *SM) {
+void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
+    const SourceManager *SM) {
   std::string FunCallName = FunCall->getNameInfo().getName().getAsString();
   // Update Callees map
   auto Iter = Callers.find(FunCallName);
   if (Iter == Callers.end()) {  // First instance of a call to this function
     Callers[FunCallName] = std::vector<std::pair<SourceLocation,std::string>>();
   }
-  for (auto FunDeclIter = Locations.begin(); FunDeclIter != Locations.end(); FunDeclIter++) {
-    if (SM->isPointWithin(FunCall->getLocation(), FunDeclIter->second.getBegin(), FunDeclIter->second.getEnd())) {
-      Callers[FunCallName].push_back(std::make_pair(FunCall->getBeginLoc(), FunDeclIter->first));
+  for (auto I = Locations.begin(), E = Locations.end(); I != E; ++I) {
+    if (SM->isPointWithin(FunCall->getLocation(), I->second.getBegin(), 
+        I->second.getEnd())) {
+      Callers[FunCallName].push_back(std::make_pair(FunCall->getBeginLoc(),
+                                     I->first));
     }
   }
   // Check if function call is recursive
-  std::string RecursivePath = isRecursive(FunCallName, FunCallName, MaxRecursionDepth);
+  std::string RecursivePath = isRecursive(FunCallName, FunCallName, 0);
   if (!RecursivePath.empty()) {
-    diag(FunCall->getBeginLoc(), "The call to function %0 is recursive, which is not supported by OpenCL.", DiagnosticIDs::Error)
+    diag(FunCall->getBeginLoc(), 
+         "The call to function %0 is recursive, which is not supported by "
+         "OpenCL.", DiagnosticIDs::Error)
         << FunCallName;
     diag(FunCall->getBeginLoc(), RecursivePath, DiagnosticIDs::Note);
   }
 }
 
-std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName, std::string &CallerName, int Depth) {
-  if (Depth == 5) {
+std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName, 
+    std::string &CallerName, int Depth) {
+  if (Depth == MaxRecursionDepth) {
     return "";
   }
   for(std::pair<SourceLocation,std::string> &Caller: Callers[CallerName]) {
@@ -72,25 +80,29 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName, st
     std::string StringPath = isRecursive(FunCallName, Caller.second, Depth+1);
     if (!StringPath.empty()) {
       std::ostringstream StringStream;
-      StringStream << buildStringPath(CallerName, Caller.second, Depth) << "\n\n" << StringPath;
+      StringStream << buildStringPath(CallerName, Caller.second, Depth) 
+          << "\n\n" << StringPath;
       return StringStream.str();
     }
   }
   return "";
 }
 
-std::string RecursionNotSupportedCheck::buildStringPath(std::string &FunCallName, std::string &CallerName, int Depth) {
+std::string RecursionNotSupportedCheck::buildStringPath(
+    std::string &FunCallName, std::string &CallerName, int Depth) {
   std::ostringstream StringStream;
   while (Depth > 0) {
     StringStream << "\t";
     Depth--;
   }
-  StringStream << "function " << FunCallName << " is called by function " << CallerName;
+  StringStream << "function " << FunCallName << " is called by function " 
+      << CallerName;
   std::string StringPath = StringStream.str();
   return StringPath;
 }
 
-void RecursionNotSupportedCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+void RecursionNotSupportedCheck::storeOptions(
+    ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "MaxRecursionDepth", MaxRecursionDepth);
 }
 
