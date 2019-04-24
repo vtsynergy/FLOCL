@@ -57,7 +57,7 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
     }
   }
   // Check if function call is recursive
-  std::string RecursivePath = isRecursive(FunCallName, FunCallName, 0);
+  std::string RecursivePath = isRecursive(FunCallName, FunCallName, 0, SM);
   if (!RecursivePath.empty()) {
     diag(FunCall->getBeginLoc(), 
          "The call to function %0 is recursive, which is not supported by "
@@ -68,19 +68,21 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
 }
 
 std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName, 
-    std::string &CallerName, unsigned Depth) {
+    std::string &CallerName, unsigned Depth, const SourceManager *SM) {
   if (Depth == MaxRecursionDepth) {
     return "";
   }
   for(std::pair<SourceLocation,std::string> &Caller: Callers[CallerName]) {
     if (Caller.second.compare(FunCallName) == 0) {
       // Try adding note here
-      return buildStringPath(CallerName, FunCallName, Depth);
+      return buildStringPath(CallerName, FunCallName, Depth, SM, Caller.first);
     }
-    std::string StringPath = isRecursive(FunCallName, Caller.second, Depth+1);
+    std::string StringPath = isRecursive(FunCallName, Caller.second, Depth+1,
+                                         SM);
     if (!StringPath.empty()) {
       std::ostringstream StringStream;
-      StringStream << buildStringPath(CallerName, Caller.second, Depth) 
+      StringStream << buildStringPath(CallerName, Caller.second, Depth, SM,
+                                      Caller.first) 
           << "\n\n" << StringPath;
       return StringStream.str();
     }
@@ -89,7 +91,8 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
 }
 
 std::string RecursionNotSupportedCheck::buildStringPath(
-    std::string &FunCallName, std::string &CallerName, unsigned Depth) {
+    std::string &FunCallName, std::string &CallerName, unsigned Depth,
+    const SourceManager *SM, SourceLocation Loc) {
   std::ostringstream StringStream;
   while (Depth > 0) {
     StringStream << "\t";

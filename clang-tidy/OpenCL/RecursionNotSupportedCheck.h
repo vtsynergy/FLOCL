@@ -52,10 +52,10 @@ private:
   /// recursion path as a string parameter. If the function call is not
   /// recursive, returns an empty string.
   std::string isRecursive(std::string &FunCallName, std::string &CallerName,
-      unsigned Depth);
+      unsigned Depth, const SourceManager *SM);
   /// Helper function that builds a portion of the recursion path. 
   std::string buildStringPath(std::string &FunCallName, std::string &CallerName,
-      unsigned Depth);
+      unsigned Depth, const SourceManager *SM, SourceLocation Loc);
   void storeOptions(ClangTidyOptions::OptionMap &Opts);
 };
 
