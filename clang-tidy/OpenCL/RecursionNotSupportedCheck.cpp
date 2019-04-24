@@ -49,11 +49,11 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
   if (Iter == Callers.end()) {  // First instance of a call to this function
     Callers[FunCallName] = std::vector<std::pair<SourceLocation,std::string>>();
   }
-  for (auto I = Locations.begin(), E = Locations.end(); I != E; ++I) {
-    if (SM->isPointWithin(FunCall->getLocation(), I->second.getBegin(), 
-        I->second.getEnd())) {
+  for (auto const &I : Locations) {
+    if (SM->isPointWithin(FunCall->getLocation(), I.second.getBegin(), 
+        I.second.getEnd())) {
       Callers[FunCallName].push_back(std::make_pair(FunCall->getBeginLoc(),
-                                     I->first));
+                                     I.first));
     }
   }
   // Check if function call is recursive
@@ -72,7 +72,7 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
   if (Depth == MaxRecursionDepth) {
     return "";
   }
-  for(std::pair<SourceLocation,std::string> &Caller: Callers[CallerName]) {
+  for(std::pair<SourceLocation,std::string> &Caller : Callers[CallerName]) {
     if (Caller.second.compare(FunCallName) == 0) {
       // Try adding note here
       return buildStringPath(CallerName, FunCallName, Depth, SM, Caller.first);
@@ -98,8 +98,11 @@ std::string RecursionNotSupportedCheck::buildStringPath(
     StringStream << "\t";
     Depth--;
   }
-  StringStream << "function " << FunCallName << " is called by function " 
-      << CallerName;
+  std::pair<FileID, unsigned> FileOffset = SM->getDecomposedLoc(Loc);
+  std::string FilePath = SM->getFileEntryForID(
+      FileOffset.first)->tryGetRealPathName();
+  StringStream << FunCallName << " is called by " << CallerName << " in "
+      << FilePath;
   std::string StringPath = StringStream.str();
   return StringPath;
 }
