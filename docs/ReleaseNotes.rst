@@ -76,7 +76,8 @@ Improvements to clang-tidy
 - New :doc:`OpenCL-recursion-not-supported
   <clang-tidy/checks/OpenCL-recursion-not-supported>` check.
 
-  FIXME: add release notes.
+  Checks for cases where a function call is recursive. This is restricted by 
+  OpenCL.
 
 - New :doc:`abseil-duration-addition
   <clang-tidy/checks/abseil-duration-addition>` check.
