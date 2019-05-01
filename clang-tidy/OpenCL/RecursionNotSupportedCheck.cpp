@@ -63,7 +63,6 @@ void RecursionNotSupportedCheck::handleFunctionCall(const DeclRefExpr *FunCall,
          "The call to function %0 is recursive, which is not supported by "
          "OpenCL.\n%1", DiagnosticIDs::Error)
         << FunCallName << RecursivePath;
-    // diag(FunCall->getBeginLoc(), RecursivePath, DiagnosticIDs::Note);
   }
 }
 
@@ -74,7 +73,6 @@ std::string RecursionNotSupportedCheck::isRecursive(std::string &FunCallName,
   }
   for(std::pair<SourceLocation,std::string> &Caller : Callers[CallerName]) {
     if (Caller.second.compare(FunCallName) == 0) {
-      // Try adding note here
       return buildStringPath(CallerName, FunCallName, SM, Caller.first);
     }
     std::string StringPath = isRecursive(FunCallName, Caller.second, Depth+1,
