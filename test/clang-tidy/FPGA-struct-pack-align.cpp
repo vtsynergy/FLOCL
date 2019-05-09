@@ -36,6 +36,20 @@ char c;
 } __attribute((packed)) __attribute((aligned(8)));
 // CHECK-MESSAGES: :[[@LINE-5]]:8: warning: struct 'bad_align' has inefficient access due to poor alignment. Currently aligned to 8 bytes, but size 10 bytes is large enough to benefit from "__attribute((aligned(16)))" [FPGA-struct-pack-align]
 
+struct bad_align2 {
+char a;
+double b;
+char c;
+} __attribute((packed)) __attribute((aligned(32)));
+// CHECK-MESSAGES: :[[@LINE-5]]:8: warning: struct 'bad_align2' has inefficient access due to poor alignment. Currently aligned to 32 bytes, but size 10 bytes is large enough to benefit from "__attribute((aligned(16)))" [FPGA-struct-pack-align]
+
+struct bad_align3 {
+char a;
+double b;
+char c;
+} __attribute((packed)) __attribute((aligned(4)));
+// CHECK-MESSAGES: :[[@LINE-5]]:8: warning: struct 'bad_align3' has inefficient access due to poor alignment. Currently aligned to 4 bytes, but size 10 bytes is large enough to benefit from "__attribute((aligned(16)))" [FPGA-struct-pack-align]
+
 // Struct is both perfectly packed and aligned
 struct success {
 char a;
