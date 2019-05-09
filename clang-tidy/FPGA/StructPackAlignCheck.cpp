@@ -73,9 +73,20 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
 //	<< (int)currAlign.getQuantity()
 //	<< (int)newAlign.getQuantity()
 //	<< (int)minByteSize.getQuantity();
+  // Check if struct has a "packed" attribute
+  bool IsPacked = false;
+  if (Struct->hasAttrs()) {
+    for (auto attribute : Struct->getAttrs()) {
+      if (std::string(attribute->getSpelling()).compare("packed") == 0) {
+        IsPacked = true;
+        break;
+      }
+    }
+  }
+
   //If it's using much more space than it needs, suggest packing.
   // (Do not suggest packing if it is currently explicitly aligned to what the minimum byte size would suggest as the new alignment
-  if (minByteSize < currSize && ((Struct->getMaxAlignment()>>3) != newAlign.getQuantity()) && (currSize != newAlign)) {
+  if (minByteSize < currSize && ((Struct->getMaxAlignment()>>3) != newAlign.getQuantity()) && (currSize != newAlign) && !IsPacked) {
     diag(Struct->getLocation(), "struct %0 has inefficient access due to padding, only needs %1 bytes but is using %2 bytes, use \"__attribute((packed))\"")
 	<< Struct
 	<< (int)minByteSize.getQuantity()
