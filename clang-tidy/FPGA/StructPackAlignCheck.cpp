@@ -23,71 +23,88 @@ namespace tidy {
 namespace FPGA {
 
 void StructPackAlignCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Add matchers.
   Finder->addMatcher(recordDecl(isStruct()).bind("struct"), this);
-  //Finder->addMatcher(recordDecl().bind("struct"), this);
 }
 
 void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
-  // FIXME: Add callback implementation.
   const auto *Struct = Result.Nodes.getNodeAs<RecordDecl>("struct");
   const auto *StructDef = Struct->getDefinition();
-  if (Struct != StructDef) return; //Do nothing, we only want to deal with definitions
-  std::vector<std::pair<unsigned int, unsigned int>> fieldSizes;
-  unsigned int totalBitSize = 0;
-  for (RecordDecl::field_iterator fields = Struct->field_begin(); fields != Struct->field_end(); fields++) {
-    //For each field, record how big it is (in bits)
-    // Would be good to use a pair of <offset, size> to advise a better packing order
-    //fieldSizes.push_back(std::pair<unsigned int, unsigned int>((*fields)->getBitWidthValue(*Result.Context), (*fields)->getFieldIndex())i);
-    unsigned int fieldWidth = (unsigned int)Result.Context->getTypeInfo((*fields)->getType().getTypePtr()).Width;
-    fieldSizes.push_back(std::pair<unsigned int, unsigned int>(fieldWidth, (*fields)->getFieldIndex()));
-    //TODO: Recommend a reorganization of the struct (sort by field size, largesst to smallest)
-//	llvm::errs() << "fieldWidth: " << fieldWidth << "\n";
-    totalBitSize += fieldWidth;
+  
+  // If not a definition, do nothing
+  if (Struct != StructDef) return;
+  
+  // Get sizing info for the struct
+  std::vector<std::pair<unsigned int, unsigned int>> FieldSizes;
+  unsigned int TotalBitSize = 0;
+  for (auto StructField : Struct->fields()) {  
+    // For each StructField, record how big it is (in bits)
+    // Would be good to use a pair of <offset, size> to advise a better 
+    // packing order
+    unsigned int StructFieldWidth = (unsigned int)Result.Context->getTypeInfo(
+        StructField->getType().getTypePtr()).Width;
+    FieldSizes.push_back(std::pair<unsigned int, unsigned int>(
+                         StructFieldWidth, StructField->getFieldIndex()));
+    // TODO: Recommend a reorganization of the struct (sort by StructField size, 
+    // largest to smallest)
+    TotalBitSize += StructFieldWidth;
   }
-  //unsigned int minByteSize = (totalBitSize + 7) >> 3; //TODO: Express this as CharUnit rather than a hardcoded 8-bits (Rshift3)i
-  //const auto Layout = Result.Context->getASTRecordLayout(Struct);
-  //After computing the minimum size in bits, check for an existing alignment flag
-  //CharUnits currAlign = Layout.getAlignment();
-  CharUnits currSize = Result.Context->getASTRecordLayout(Struct).getSize();
-  CharUnits minByteSize = CharUnits::fromQuantity((totalBitSize +7) >> 3);
-  CharUnits currAlign = Result.Context->getASTRecordLayout(Struct).getAlignment();
-  CharUnits newAlign = CharUnits::fromQuantity(1);
-  if (!minByteSize.isPowerOfTwo()) {
-    int msb = (int)minByteSize.getQuantity();
-    for (; msb > 0; msb>>=1) {
-//	llvm::errs() << "msb: " << msb << "\n";
-      newAlign = newAlign.alignTo(CharUnits::fromQuantity(((int)newAlign.getQuantity()) << 1));
+  // TODO: Express this as CharUnit rather than a hardcoded 8-bits (Rshift3)i
+  // After computing the minimum size in bits, check for an existing alignment
+  // flag
+  CharUnits CurrSize = Result.Context->getASTRecordLayout(Struct).getSize();
+  CharUnits MinByteSize = CharUnits::fromQuantity((TotalBitSize +7) >> 3);
+  CharUnits CurrAlign = Result.Context->getASTRecordLayout(
+      Struct).getAlignment();
+  CharUnits NewAlign = CharUnits::fromQuantity(1);
+  if (!MinByteSize.isPowerOfTwo()) {
+    int MSB = (int)MinByteSize.getQuantity();
+    for (; MSB > 0; MSB >>= 1) {
+      NewAlign = NewAlign.alignTo(CharUnits::fromQuantity(
+                                  ((int)NewAlign.getQuantity()) << 1));
       //Abort if the computed alignment meets the maximum configured alignment
-      if (newAlign.getQuantity() >= (1 << MAX_ALIGN_POWER_OF_TWO)) break; 
-   }
+      if (NewAlign.getQuantity() >= (1 << MAX_ALIGN_POWER_OF_TWO)) break; 
+    }
   } else {
-    newAlign = minByteSize;
+    NewAlign = MinByteSize;
   }
-  //if (!minByteSize.isPowerOfTwo()) {
-  //  newAlign = minByteSize.alignTo(CharUnits::fromQuantity(((minByteSize.getQuantity()) & (-(minByteSize.getQuantity()))) * 2));
-  //}
- //   diag(Struct->getLocation(), "struct %0 has size %1, alignment %2, and will be aligned to %3, with minimum pack size %4")
-//	<< Struct
-//	<< (int)currSize.getQuantity()
-//	<< (int)currAlign.getQuantity()
-//	<< (int)newAlign.getQuantity()
-//	<< (int)minByteSize.getQuantity();
-  //If it's using much more space than it needs, suggest packing.
-  // (Do not suggest packing if it is currently explicitly aligned to what the minimum byte size would suggest as the new alignment
-  if (minByteSize < currSize && ((Struct->getMaxAlignment()>>3) != newAlign.getQuantity())) {
-    diag(Struct->getLocation(), "struct %0 has inefficient access due to padding, only needs %1 bytes but is using %2 bytes, use \"__attribute((packed))\"")
-	<< Struct
-	<< (int)minByteSize.getQuantity()
-	<< (int)currSize.getQuantity();
+  
+  // Check if struct has a "packed" attribute
+  bool IsPacked = false;
+  if (Struct->hasAttrs()) {
+    for (auto StructAttribute : Struct->getAttrs()) {
+      if (std::string(StructAttribute->getSpelling()).compare("packed") == 0) {
+        IsPacked = true;
+        break;
+      }
+    }
   }
-  // and suggest the minimum power-of-two alignment for the struct as a whole (with and without packing>
-  if (currAlign.getQuantity() != newAlign.getQuantity()) {
-    diag(Struct->getLocation(), "struct %0 has inefficient access due to poor alignment. Currently aligned to %1 bytes, but size %3 bytes is large enough to benefit from \"__attribute((aligned(%2)))\"")
-	<< Struct
-	<< (int)currAlign.getQuantity()
-	<< (int)newAlign.getQuantity()
-	<< (int)minByteSize.getQuantity(); 
+
+  // If it's using much more space than it needs, suggest packing.
+  // (Do not suggest packing if it is currently explicitly aligned to what the
+  // minimum byte size would suggest as the new alignment)
+  if (MinByteSize < CurrSize && 
+      ((Struct->getMaxAlignment()>>3) != NewAlign.getQuantity()) && 
+      (CurrSize != NewAlign) && 
+      !IsPacked) {
+    diag(Struct->getLocation(), 
+         "struct %0 has inefficient access due to padding, only needs %1 bytes "
+         "but is using %2 bytes, use \"__attribute((packed))\"")
+	    << Struct
+	    << (int)MinByteSize.getQuantity()
+	    << (int)CurrSize.getQuantity();
+  }
+
+  // And suggest the minimum power-of-two alignment for the struct as a whole
+  // (with and without packing)
+  if (CurrAlign.getQuantity() != NewAlign.getQuantity()) {
+    diag(Struct->getLocation(), 
+         "struct %0 has inefficient access due to poor alignment. Currently "
+         "aligned to %1 bytes, but size %3 bytes is large enough to benefit "
+         "from \"__attribute((aligned(%2)))\"")
+	    << Struct
+	    << (int)CurrAlign.getQuantity()
+	    << (int)NewAlign.getQuantity()
+	    << (int)MinByteSize.getQuantity(); 
   }
 }
 

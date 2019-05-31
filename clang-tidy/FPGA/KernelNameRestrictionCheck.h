@@ -15,7 +15,9 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
-/// FIXME: Write a short description.
+/// Flags kernel files that are named kernel.cl, Verilog.cl or VHDL.cl as 
+/// warnings, since this may lead to intermediate files being generated that 
+/// have the same names as certain internal files, leading to compiler errors..
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-kernel-name-restriction.html

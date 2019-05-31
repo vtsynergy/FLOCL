@@ -16,7 +16,8 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
-/// FIXME: Write a short description.
+/// Finds structs that are inefficiently packed or aligned, and recommends
+/// packing and/or aligning of said structs as needed.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-struct-pack-align.html

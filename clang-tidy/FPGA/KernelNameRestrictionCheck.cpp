@@ -20,7 +20,8 @@ namespace FPGA {
 namespace {
 class KernelNameRestrictionPPCallbacks : public PPCallbacks {
 public:
-  explicit KernelNameRestrictionPPCallbacks(ClangTidyCheck &Check, SourceManager &SM)
+  explicit KernelNameRestrictionPPCallbacks(ClangTidyCheck &Check,
+                                            SourceManager &SM)
       : Check(Check), SM(SM) {}
   
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
@@ -44,7 +45,8 @@ private:
 };
 } // namespace
 
-void KernelNameRestrictionCheck::registerPPCallbacks(CompilerInstance &Compiler) {
+void KernelNameRestrictionCheck::registerPPCallbacks(
+    CompilerInstance &Compiler) {
   Compiler.getPreprocessor().addPPCallbacks(
       ::llvm::make_unique<KernelNameRestrictionPPCallbacks>(
           *this, Compiler.getSourceManager()));
@@ -66,27 +68,29 @@ void KernelNameRestrictionPPCallbacks::EndOfMainFile() {
     return;
 
   // Check included files for restricted names
-  for (unsigned I = 0; I < IncludeDirectives.size(); ++I) {
-    IncludeDirective &ID = IncludeDirectives[I];
-    StringRef FilePath = StringRef(ID.Filename);
-    StringRef FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
+  for (IncludeDirective &ID : IncludeDirectives) {
+    auto FilePath = StringRef(ID.Filename);
+    auto FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
     if (FileName.equals_lower("kernel.cl") || 
         FileName.equals_lower("verilog.cl") || 
         FileName.equals_lower("vhdl.cl")) {
-      Check.diag(ID.Loc, "The imported kernel source file is named 'kernel.cl',"
-          "'Verilog.cl', or 'VHDL.cl', which could cause compile errors.");
+      Check.diag(ID.Loc, 
+                 "The imported kernel source file is named 'kernel.cl',"
+                 "'Verilog.cl', or 'VHDL.cl', which could cause compilation "
+                 "errors.");
     }
   }
 
   // Check main file for restricted names
-  const FileEntry *Entry = SM.getFileEntryForID(SM.getMainFileID());
+  auto Entry = SM.getFileEntryForID(SM.getMainFileID());
   StringRef FilePath = Entry->getName();
-  StringRef FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
+  auto FileName = FilePath.substr(FilePath.find_last_of("/\\") + 1);
   if (FileName.equals_lower("kernel.cl") || 
       FileName.equals_lower("verilog.cl") || 
       FileName.equals_lower("vhdl.cl")) {
     Check.diag(SM.getLocForStartOfFile(SM.getMainFileID()),
-        "Naming your OpenCL kernel source file 'kernel.cl', 'Verilog.cl', or 'VHDL.cl' could cause compilation errors.");
+               "Naming your OpenCL kernel source file 'kernel.cl', 'Verilog.cl'"
+               ", or 'VHDL.cl' could cause compilation errors.");
   }
 }
 

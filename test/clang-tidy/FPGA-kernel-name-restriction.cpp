@@ -2,27 +2,27 @@
 
 // These are the banned kernel filenames, and should trigger warnings
 #include "kernel.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "Verilog.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "VHDL.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 
 // The warning should be triggered regardless of capitalization
 #include "KERNEL.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "vERILOG.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "vhdl.CL"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 
 // The warning should be triggered if the names are within a directory
 #include "some/dir/kernel.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "somedir/verilog.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 #include "otherdir/vhdl.cl"
-// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compile errors. [FPGA-kernel-name-restriction]
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: The imported kernel source file is named 'kernel.cl','Verilog.cl', or 'VHDL.cl', which could cause compilation errors. [FPGA-kernel-name-restriction]
 
 // There are no FIX-ITs for the FPGA-kernel-name-restriction lint check
 
