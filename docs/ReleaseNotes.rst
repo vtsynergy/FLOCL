@@ -81,6 +81,12 @@ Improvements to clang-tidy
   Checks for cases where the kernel source file is named "kernel.cl",
   "Verilog.cl", or "VHDL.cl".
 
+- New :doc:`OpenCL-recursion-not-supported
+  <clang-tidy/checks/OpenCL-recursion-not-supported>` check.
+
+  Checks for cases where a function call is recursive. This is restricted by 
+  OpenCL.
+
 - New :doc:`abseil-duration-addition
   <clang-tidy/checks/abseil-duration-addition>` check.
 

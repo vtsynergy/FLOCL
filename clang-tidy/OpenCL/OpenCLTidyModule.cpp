@@ -11,6 +11,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "PossiblyUnreachableBarrierCheck.h"
+#include "RecursionNotSupportedCheck.h"
 
 
 using namespace clang::ast_matchers;
@@ -24,6 +25,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<PossiblyUnreachableBarrierCheck>(
         "OpenCL-possibly-unreachable-barrier");
+    CheckFactories.registerCheck<RecursionNotSupportedCheck>(
+        "OpenCL-recursion-not-supported");
   }
 };
 
