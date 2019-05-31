@@ -7,6 +7,7 @@ Clang-Tidy Checks
    FPGA-ID-dependent-backward-branch
    FPGA-kernel-name-restriction
    FPGA-struct-pack-align
+   FPGA-unroll-loops
    OpenCL-possibly-unreachable-barrier
    abseil-duration-addition
    abseil-duration-comparison

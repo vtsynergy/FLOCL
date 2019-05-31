@@ -14,6 +14,7 @@
 #include "KernelNameRestrictionCheck.h"
 #include "SingleWorkItemBarrierCheck.h"
 #include "StructPackAlignCheck.h"
+#include "UnrollLoopsCheck.h"
 
 
 using namespace clang::ast_matchers;
@@ -33,6 +34,8 @@ public:
         "FPGA-single-work-item-barrier");
     CheckFactories.registerCheck<StructPackAlignCheck>(
         "FPGA-struct-pack-align");
+    CheckFactories.registerCheck<UnrollLoopsCheck>(
+        "FPGA-unroll-loops");
   }
 };
 

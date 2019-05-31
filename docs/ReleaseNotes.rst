@@ -67,6 +67,14 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New :doc:`FPGA-unroll-loops
+  <clang-tidy/checks/FPGA-unroll-loops>` check.
+
+  Checks for inner loops that aren't unrolled. Unrolling these loops could improve
+  the performance of OpenCL kernels. Also checks for fully unrolled loops with a
+  large number of iterations or unknown bounds. These loops cannot be fully 
+  unrolled, and should be partially unrolled.
+
 - New :doc:`FPGA-kernel-name-restriction
   <clang-tidy/checks/FPGA-kernel-name-restriction>` check.
 
