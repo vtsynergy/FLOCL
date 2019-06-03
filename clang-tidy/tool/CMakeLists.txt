@@ -1,8 +1,9 @@
 set(LLVM_LINK_COMPONENTS
-  AllTargetsAsmParsers
-  AllTargetsDescs
-  AllTargetsInfos
-  support
+	#  AllTargetsAsmParsers
+	#  AllTargetsDescs
+	#  AllTargetsInfos
+	#  support
+	
   )
 
 add_clang_tool(clang-tidy

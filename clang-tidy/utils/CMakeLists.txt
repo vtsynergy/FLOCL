@@ -1,4 +1,4 @@
-set(LLVM_LINK_COMPONENTS support)
+#set(LLVM_LINK_COMPONENTS support)
 
 list(APPEND CLANG_TIDY_UTILS_SRC 
   ASTUtils.cpp

@@ -21,7 +21,7 @@ endif()
 #dependencies
 list(APPEND CMAKE_MODULE_PATH "/usr/lib/llvm-6.0/lib/cmake/llvm/")
 include(LLVMConfig)
-include(LLVMExports)
+#include(LLVMExports)
 include(AddLLVM)
 #from https://raw.github.com/llvm-mirror/clang/master/cmake/modules/AddClang.cmake
 include(AddClang.cmake)
