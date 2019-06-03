@@ -96,10 +96,14 @@ void UnnecessaryValueParamCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Param = Result.Nodes.getNodeAs<ParmVarDecl>("param");
   const auto *Function = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   FunctionParmMutationAnalyzer &Analyzer =
       MutationAnalyzers.try_emplace(Function, *Function, *Result.Context)
           .first->second;
   if (Analyzer.isMutated(Param))
+#else
+  if(utils::ExprMutationAnalyzer(*Function->getBody(), *Result.Context).isMutated(Param))
+#endif
     return;
 
   const bool IsConstQualified =

@@ -15,6 +15,10 @@
 using namespace clang::ast_matchers;
 
 namespace clang {
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+AST_MATCHER(FunctionDecl, isNoReturn) { return Node.isNoReturn(); }
+#endif
 namespace tidy {
 namespace modernize {
 

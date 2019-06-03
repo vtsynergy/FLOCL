@@ -30,8 +30,12 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
+#if (LLVM_PACKAGE_VERSION >= 900)
                           const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
+#else
+                          const Module *Imported) override;
+#endif
   void EndOfMainFile() override;
 
 private:
@@ -59,9 +63,14 @@ private:
 void RestrictedIncludesPPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
     bool IsAngled, CharSourceRange FilenameRange, const FileEntry *File,
+#if (LLVM_PACKAGE_VERSION >= 900)
     StringRef SearchPath, StringRef RelativePath, const Module *Imported,
     SrcMgr::CharacteristicKind FileType) {
   if (!Check.contains(FileName) && SrcMgr::isSystem(FileType)) {
+#else
+    StringRef SearchPath, StringRef RelativePath, const Module *Imported) {
+  if (!Check.contains(FileName) && IsAngled) {
+#endif
     SmallString<256> FullPath;
     llvm::sys::path::append(FullPath, SearchPath);
     llvm::sys::path::append(FullPath, RelativePath);

@@ -331,7 +331,11 @@ private:
                NullMacros.end();
       }
 
+#if (LLVM_PACKAGE_VERSION >= 900)
       MacroLoc = SM.getExpansionRange(ArgLoc).getBegin();
+#else
+      MacroLoc = SM.getExpansionRange(ArgLoc).first;
+#endif
 
       ArgLoc = Expansion.getSpellingLoc().getLocWithOffset(LocInfo.second);
       if (ArgLoc.isFileID())
@@ -386,7 +390,11 @@ private:
         continue;
       }
 
+#if (LLVM_PACKAGE_VERSION >= 900)
       MacroLoc = SM.getImmediateExpansionRange(Loc).getBegin();
+#else
+      MacroLoc = SM.getImmediateExpansionRange(Loc).first;
+#endif
       if (MacroLoc.isFileID() && MacroLoc == TestMacroLoc) {
         // Match made.
         return true;

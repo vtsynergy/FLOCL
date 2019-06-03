@@ -11,7 +11,11 @@
 
 #include "../ClangTidy.h"
 #include "../utils/IncludeInserter.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
 #include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
+#else
+#include "../utils/ExprMutationAnalyzer.h"
+#endif
 
 namespace clang {
 namespace tidy {
@@ -35,7 +39,11 @@ private:
   void handleMoveFix(const ParmVarDecl &Var, const DeclRefExpr &CopyArgument,
                      const ASTContext &Context);
 
-  llvm::DenseMap<const FunctionDecl *, FunctionParmMutationAnalyzer>
+#if (LLVM_PACKAGE_VERSION >= 900)
+  llvm::DenseMap<const FunctionDecl *, iFunctionParmMutationAnalyzer>
+#else
+  llvm::DenseMap<const FunctionDecl *, utils::ExprMutationAnalyzer>
+#endif
       MutationAnalyzers;
   std::unique_ptr<utils::IncludeInserter> Inserter;
   const utils::IncludeSorter::IncludeStyle IncludeStyle;

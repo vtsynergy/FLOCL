@@ -14,6 +14,10 @@
 using namespace clang::ast_matchers;
 
 namespace clang {
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+AST_MATCHER(FunctionDecl, isMain) { return Node.isMain(); }
+#endif
 namespace tidy {
 namespace google {
 namespace objc {
@@ -90,7 +94,11 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
 
 void FunctionNamingCheck::registerMatchers(MatchFinder *Finder) {
   // This check should only be applied to Objective-C sources.
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (!getLangOpts().ObjC)
+#else
+  if (!getLangOpts().ObjC1 && !getLangOpts().ObjC2)
+#endif
     return;
 
   // Match function declarations that are not in system headers and are not

@@ -13,6 +13,13 @@
 using namespace clang::ast_matchers;
 
 namespace clang {
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+AST_TYPE_MATCHER(DecltypeType, decltypeType);
+namespace ast_matchers {
+AST_TYPE_TRAVERSE_MATCHER(hasUnderlyingType, getUnderlyingType, AST_POLYMORPHIC_SUPPORTED_TYPES(DecltypeType));
+}
+#endif
 namespace tidy {
 namespace cppcoreguidelines {
 

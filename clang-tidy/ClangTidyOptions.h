@@ -14,7 +14,15 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorOr.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
 #include "llvm/Support/VirtualFileSystem.h"
+#else
+#include "clang/Basic/VirtualFileSystem.h"
+namespace llvm {
+	namespace vfs=clang::vfs;
+}
+#define LLVM_DEBUG DEBUG
+#endif
 #include <functional>
 #include <map>
 #include <string>

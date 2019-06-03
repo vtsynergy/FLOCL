@@ -14,6 +14,10 @@
 using namespace clang::ast_matchers;
 
 namespace clang {
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+AST_TYPE_MATCHER(DecltypeType, decltypeType);
+#endif
 namespace tidy {
 namespace fuchsia {
 

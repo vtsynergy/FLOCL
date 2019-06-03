@@ -18,6 +18,10 @@ add_extra_unittest(ClangTidyTests
   UsingInserterTest.cpp
   ReadabilityModuleTest.cpp)
 
+if(${LLVM_PACKAGE_VERSION} VERSION_LESS "9.0.0")
+	add_extra_unittest(ClangTidyTests ExprMutationAnalyzerTest.cpp)
+endif(${LLVM_PACKAGE_VERSION} VERSION_LESS "9.0.0")
+
 target_link_libraries(ClangTidyTests
   PRIVATE
   clangAST

@@ -372,7 +372,11 @@ static bool LineIsMarkedWithNOLINTinMacro(const SourceManager &SM,
       return true;
     if (!Loc.isMacroID())
       return false;
+#if (LLVM_PACKAGE_VERSION >= 900)
     Loc = SM.getImmediateExpansionRange(Loc).getBegin();
+#else
+    Loc = SM.getImmediateExpansionRange(Loc).first;
+#endif
   }
   return false;
 }

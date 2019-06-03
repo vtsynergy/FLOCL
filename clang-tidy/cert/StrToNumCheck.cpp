@@ -9,7 +9,11 @@
 #include "StrToNumCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
 #include "clang/AST/FormatString.h"
+#else
+#include "clang/Analysis/Analyses/FormatString.h"
+#endif
 #include "llvm/ADT/StringSwitch.h"
 #include <cassert>
 

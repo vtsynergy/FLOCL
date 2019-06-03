@@ -21,6 +21,12 @@
 #include <type_traits>
 #include <vector>
 
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#define getBeginLoc getLocStart
+#define getEndLoc getLocEnd
+#endif
+
 namespace clang {
 
 class CompilerInstance;

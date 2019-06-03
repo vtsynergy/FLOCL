@@ -10,6 +10,10 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_ABSEIL_NOINTERNALDEPSCHECK_H
 
 #include "../ClangTidy.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#undef getBeginLoc 
+#endif
 
 namespace clang {
 namespace tidy {

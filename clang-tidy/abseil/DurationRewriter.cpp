@@ -122,6 +122,21 @@ llvm::StringRef getTimeInverseForScale(DurationScale scale) {
   llvm_unreachable("unknown scaling factor");
 }
 
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+extern const ast_matchers::internal::VariadicDynCastAllOfMatcher<Stmt, InitListExpr> initListExpr;
+
+AST_MATCHER_P(InitListExpr, hasSyntacticForm, ast_matchers::internal::Matcher<Expr>, InnerMatcher) {
+	const Expr *SyntForm = Node.getSyntacticForm();
+	return (SyntForm != nullptr && InnerMatcher.matches(*SyntForm, Finder, Builder));
+}
+
+AST_MATCHER_P2(InitListExpr, hasInit, unsigned, N, ast_matchers::internal::Matcher<Expr>, InnerMatcher) {
+	return N < Node.getNumInits() && InnerMatcher.matches(*Node.getInit(N), Finder, Builder);
+}
+#endif
+
+
 /// Returns `true` if `Node` is a value which evaluates to a literal `0`.
 bool IsLiteralZero(const MatchFinder::MatchResult &Result, const Expr &Node) {
   auto ZeroMatcher =
@@ -251,10 +266,18 @@ std::string rewriteExprFromNumberToDuration(
 }
 
 bool isNotInMacro(const MatchFinder::MatchResult &Result, const Expr *E) {
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (!E->getBeginLoc().isMacroID())
+#else
+  if (!E->getLocStart().isMacroID())
+#endif
     return true;
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   SourceLocation Loc = E->getBeginLoc();
+#else
+  SourceLocation Loc = E->getLocStart();
+#endif
   // We want to get closer towards the initial macro typed into the source only
   // if the location is being expanded as a macro argument.
   while (Result.SourceManager->isMacroArgExpansion(Loc)) {

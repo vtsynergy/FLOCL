@@ -12,6 +12,10 @@
 #include "clang/Lex/Lexer.h"
 
 using namespace clang::ast_matchers;
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#undef getEndLoc
+#endif
 
 namespace clang {
 namespace tidy {

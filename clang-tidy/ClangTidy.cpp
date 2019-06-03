@@ -508,7 +508,11 @@ runClangTidy(clang::tidy::ClangTidyContext &Context,
              llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS,
              bool EnableCheckProfile, llvm::StringRef StoreCheckProfile) {
   ClangTool Tool(Compilations, InputFiles,
+#if (LLVM_PACKAGE_VERSION >= 900)
                  std::make_shared<PCHContainerOperations>(), BaseFS);
+#else
+                 std::make_shared<PCHContainerOperations>());
+#endif
 
   // Add extra arguments passed by the clang-tidy command-line.
   ArgumentsAdjuster PerFileExtraArgumentsInserter =
@@ -529,7 +533,9 @@ runClangTidy(clang::tidy::ClangTidyContext &Context,
       };
 
   Tool.appendArgumentsAdjuster(PerFileExtraArgumentsInserter);
+#if (LLVM_PACKAGE_VERSION >= 900)
   Tool.appendArgumentsAdjuster(getStripPluginsAdjuster());
+#endif
   Context.setEnableProfiling(EnableCheckProfile);
   Context.setProfileStoragePrefix(StoreCheckProfile);
 

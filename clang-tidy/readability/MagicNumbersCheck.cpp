@@ -65,7 +65,11 @@ MagicNumbersCheck::MagicNumbersCheck(StringRef Name, ClangTidyContext *Context)
   IgnoredIntegerValues.resize(IgnoredIntegerValuesInput.size());
   llvm::transform(IgnoredIntegerValuesInput, IgnoredIntegerValues.begin(),
                   [](const std::string &Value) { return std::stoll(Value); });
+#if (LLVM_PACKAGE_VERSION >= 900)
   llvm::sort(IgnoredIntegerValues);
+#else
+  std::sort(IgnoredIntegerValues.begin(), IgnoredIntegerValues.end());
+#endif
 
   if (!IgnoreAllFloatingPointValues) {
     // Process the set of ignored floating point values.
@@ -83,10 +87,17 @@ MagicNumbersCheck::MagicNumbersCheck(StringRef Name, ClangTidyContext *Context)
       DoubleValue.convertFromString(InputValue, DefaultRoundingMode);
       IgnoredDoublePointValues.push_back(DoubleValue.convertToDouble());
     }
+#if (LLVM_PACKAGE_VERSION >= 900)
     llvm::sort(IgnoredFloatingPointValues.begin(),
                IgnoredFloatingPointValues.end());
     llvm::sort(IgnoredDoublePointValues.begin(),
                IgnoredDoublePointValues.end());
+#else
+    std::sort(IgnoredFloatingPointValues.begin(),
+               IgnoredFloatingPointValues.end());
+    std::sort(IgnoredDoublePointValues.begin(),
+               IgnoredDoublePointValues.end());
+#endif
   }
 }
 

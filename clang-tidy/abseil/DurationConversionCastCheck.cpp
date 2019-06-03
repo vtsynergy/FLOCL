@@ -54,7 +54,11 @@ void DurationConversionCastCheck::check(
       ConversionFuncName.contains("Double")) {
     llvm::StringRef NewFuncName = getDurationInverseForScale(*Scale).second;
 
+#if (LLVM_PACKAGE_VERSION >= 900)
     diag(MatchedCast->getBeginLoc(),
+#else
+    diag(MatchedCast->getLocStart(),
+#endif
          "duration should be converted directly to an integer rather than "
          "through a type cast")
         << FixItHint::CreateReplacement(
@@ -69,7 +73,11 @@ void DurationConversionCastCheck::check(
       ConversionFuncName.contains("Int64")) {
     llvm::StringRef NewFuncName = getDurationInverseForScale(*Scale).first;
 
+#if (LLVM_PACKAGE_VERSION >= 900)
     diag(MatchedCast->getBeginLoc(), "duration should be converted directly to "
+#else
+    diag(MatchedCast->getLocStart(), "duration should be converted directly to "
+#endif
                                      "a floating-piont number rather than "
                                      "through a type cast")
         << FixItHint::CreateReplacement(

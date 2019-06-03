@@ -100,7 +100,11 @@ void AvoidCStyleCastsCheck::check(const MatchFinder::MatchResult &Result) {
 
   // The rest of this check is only relevant to C++.
   // We also disable it for Objective-C++.
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (!getLangOpts().CPlusPlus || getLangOpts().ObjC)
+#else
+  if (!getLangOpts().CPlusPlus || getLangOpts().ObjC1 || getLangOpts().ObjC2)
+#endif
     return;
   // Ignore code inside extern "C" {} blocks.
   if (!match(expr(hasAncestor(linkageSpecDecl())), *CastExpr, *Result.Context)

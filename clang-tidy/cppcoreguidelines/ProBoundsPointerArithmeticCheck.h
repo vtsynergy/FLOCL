@@ -11,6 +11,7 @@
 
 #include "../ClangTidy.h"
 
+
 namespace clang {
 namespace tidy {
 namespace cppcoreguidelines {

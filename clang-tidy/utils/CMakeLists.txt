@@ -1,6 +1,6 @@
 set(LLVM_LINK_COMPONENTS support)
 
-add_clang_library(clangTidyUtils
+list(APPEND CLANG_TIDY_UTILS_SRC 
   ASTUtils.cpp
   DeclRefExprUtils.cpp
   ExceptionAnalyzer.cpp
@@ -15,6 +15,13 @@ add_clang_library(clangTidyUtils
   OptionsUtils.cpp
   TypeTraits.cpp
   UsingInserter.cpp
+)
+if(${LLVM_PACKAGE_VERSION} VERSION_LESS "9.0.0")
+	list(APPEND CLANG_TIDY_UTILS_SRC ExprMutationAnalyzer.cpp)
+endif(${LLVM_PACKAGE_VERSION} VERSION_LESS "9.0.0")
+add_clang_library(clangTidyUtils
+
+  ${CLANG_TIDY_UTILS_SRC}
 
   LINK_LIBS
   clangAST

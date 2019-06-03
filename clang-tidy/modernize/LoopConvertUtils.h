@@ -58,9 +58,15 @@ public:
   /// \brief Run the analysis on the AST.
   ///
   /// In case we're running this analysis multiple times, don't repeat the work.
+#if (LLVM_PACKAGE_VERSION >= 900)
   void gatherAncestors(ASTContext &Ctx) {
     if (StmtAncestors.empty())
       TraverseAST(Ctx);
+#else
+  void gatherAncestors(const clang::TranslationUnitDecl *T) {
+    if (StmtAncestors.empty())
+      TraverseDecl(const_cast<clang::TranslationUnitDecl *>(T));;
+#endif
   }
 
   /// Accessor for StmtAncestors.

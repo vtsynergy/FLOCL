@@ -13,6 +13,11 @@
 using namespace clang::ast_matchers;
 
 namespace clang {
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+AST_MATCHER(Expr, isTypeDependent) { return Node.isTypeDependent(); }
+AST_MATCHER(Expr, isValueDependent) { return Node.isValueDependent(); }
+#endif
 namespace tidy {
 namespace hicpp {
 

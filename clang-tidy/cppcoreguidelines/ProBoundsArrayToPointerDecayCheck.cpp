@@ -61,7 +61,11 @@ void ProBoundsArrayToPointerDecayCheck::registerMatchers(MatchFinder *Finder) {
           unless(hasParent(arraySubscriptExpr())),
           unless(hasParentIgnoringImpCasts(explicitCastExpr())),
           unless(isInsideOfRangeBeginEndStmt()),
+#if (LLVM_PACKAGE_VERSION >= 900)
           unless(hasSourceExpression(ignoringParens(stringLiteral()))))
+#else
+          unless(hasSourceExpression(stringLiteral())))
+#endif
           .bind("cast"),
       this);
 }

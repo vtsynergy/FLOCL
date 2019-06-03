@@ -9,6 +9,11 @@
 #include "IncludeInserter.h"
 #include "clang/Lex/Token.h"
 
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#undef getEndLoc
+#endif
+
 namespace clang {
 namespace tidy {
 namespace utils {
@@ -24,8 +29,12 @@ public:
                           bool IsAngled, CharSourceRange FileNameRange,
                           const FileEntry * /*IncludedFile*/,
                           StringRef /*SearchPath*/, StringRef /*RelativePath*/,
+#if (LLVM_PACKAGE_VERSION >= 900)
                           const Module * /*ImportedModule*/,
                           SrcMgr::CharacteristicKind /*FileType*/) override {
+#else
+                          const Module * /*ImportedModule*/) override {
+#endif
     Inserter->AddInclude(FileNameRef, IsAngled, HashLocation,
                          IncludeToken.getEndLoc());
   }

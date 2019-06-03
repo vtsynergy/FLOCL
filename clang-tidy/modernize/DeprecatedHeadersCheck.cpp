@@ -29,8 +29,12 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
-                          SrcMgr::CharacteristicKind FileType) override;
+#if (LLVM_PACKAGE_VERSION >= 900)
+    RelativePath, const Module *Imported,
+    SrcMgr::CharacteristicKind FileType);
+#else
+    const Module *Imported);
+#endif
 
 private:
   ClangTidyCheck &Check;
@@ -94,8 +98,12 @@ IncludeModernizePPCallbacks::IncludeModernizePPCallbacks(ClangTidyCheck &Check,
 void IncludeModernizePPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
     bool IsAngled, CharSourceRange FilenameRange, const FileEntry *File,
+#if (LLVM_PACKAGE_VERSION >= 900)
     StringRef SearchPath, StringRef RelativePath, const Module *Imported,
     SrcMgr::CharacteristicKind FileType) {
+#else
+    StringRef SearchPath, StringRef RelativePath, const Module *Imported) {
+#endif
   // FIXME: Take care of library symbols from the global namespace.
   //
   // Reasonable options for the check:

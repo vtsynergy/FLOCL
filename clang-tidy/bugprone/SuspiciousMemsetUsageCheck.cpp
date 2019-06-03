@@ -76,6 +76,7 @@ void SuspiciousMemsetUsageCheck::check(const MatchFinder::MatchResult &Result) {
     // so it gets truncated during conversion.
 
     const auto UCharMax = (1 << Result.Context->getCharWidth()) - 1;
+#if (LLVM_PACKAGE_VERSION >= 900)
     Expr::EvalResult EVResult;
     if (!NumFill->EvaluateAsInt(EVResult, *Result.Context))
       return;
@@ -83,6 +84,14 @@ void SuspiciousMemsetUsageCheck::check(const MatchFinder::MatchResult &Result) {
     llvm::APSInt NumValue = EVResult.Val.getInt();
     if (NumValue >= 0 && NumValue <= UCharMax)
       return;
+#else
+    llvm::APSInt NumValue;
+    if (!NumFill->EvaluateAsInt(NumValue, *Result.Context))
+      return;
+
+    if (NumValue >= 0 && NumValue <= UCharMax)
+      return;
+#endif
 
     diag(NumFill->getBeginLoc(), "memset fill value is out of unsigned "
                                  "character range, gets truncated");
@@ -96,22 +105,34 @@ void SuspiciousMemsetUsageCheck::check(const MatchFinder::MatchResult &Result) {
     const Expr *ByteCount = Call->getArg(2);
 
     // Return if `byte_count` is not zero at compile time.
+#if (LLVM_PACKAGE_VERSION >= 900)
     Expr::EvalResult Value2;
     if (ByteCount->isValueDependent() ||
         !ByteCount->EvaluateAsInt(Value2, *Result.Context) ||
         Value2.Val.getInt() != 0)
       return;
-
+#else
+    llvm::APSInt Value1, Value2;
+    if (ByteCount->isValueDependent() ||
+	!ByteCount->EvaluateAsInt(Value2, *Result.Context) || Value2 != 0)
+#endif
     // Return if `fill_char` is known to be zero or negative at compile
     // time. In these cases, swapping the args would be a nop, or
     // introduce a definite bug. The code is likely correct.
+#if (LLVM_PACKAGE_VERSION >= 900)
     Expr::EvalResult EVResult;
     if (!FillChar->isValueDependent() &&
         FillChar->EvaluateAsInt(EVResult, *Result.Context)) {
       llvm::APSInt Value1 = EVResult.Val.getInt();
       if (Value1 == 0 || Value1.isNegative())
         return;
+#else
+    if (!FillChar->isValueDependent() &&
+        FillChar->EvaluateAsInt(Value1, *Result.Context)) {
+      if (Value1 == 0 || Value1.isNegative())
+        return;
     }
+#endif
 
     // `byte_count` is known to be zero at compile time, and `fill_char` is
     // either not known or known to be a positive integer. Emit a warning

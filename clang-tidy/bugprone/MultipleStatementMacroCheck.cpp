@@ -46,8 +46,13 @@ ExpansionRanges getExpansionRanges(SourceLocation Loc,
                                    const MatchFinder::MatchResult &Result) {
   ExpansionRanges Locs;
   while (Loc.isMacroID()) {
+#if (LLVM_PACKAGE_VERSION >= 900)
     Locs.push_back(
         Result.SourceManager->getImmediateExpansionRange(Loc).getAsRange());
+#else
+    std::pair<clang::SourceLocation, clang::SourceLocation> range = Result.SourceManager->getImmediateExpansionRange(Loc);
+    Locs.push_back(SourceRange(range.first, range.second));
+#endif
     Loc = Locs.back().getBegin();
   }
   return Locs;

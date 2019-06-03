@@ -24,7 +24,11 @@ namespace {
 // end of the string. Else, add <Mode>.
 std::string buildFixMsgForStringFlag(const Expr *Arg, const SourceManager &SM,
                                      const LangOptions &LangOpts, char Mode) {
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (Arg->getBeginLoc().isMacroID())
+#else
+  if (Arg->getLocStart().isMacroID())
+#endif
     return (Lexer::getSourceText(
                 CharSourceRange::getTokenRange(Arg->getSourceRange()), SM,
                 LangOpts) +
@@ -63,8 +67,12 @@ void CloexecCheck::insertMacroFlag(const MatchFinder::MatchResult &Result,
     return;
 
   SourceLocation EndLoc =
+#if (LLVM_PACKAGE_VERSION >= 900)
       Lexer::getLocForEndOfToken(SM.getFileLoc(FlagArg->getEndLoc()), 0, SM,
-                                 Result.Context->getLangOpts());
+#else
+      Lexer::getLocForEndOfToken(SM.getFileLoc(FlagArg->getLocStart()), 0, SM,
+#endif
+	      Result.Context->getLangOpts());
 
   diag(EndLoc, "%0 should use %1 where possible")
       << FD << MacroFlag
@@ -74,7 +82,11 @@ void CloexecCheck::insertMacroFlag(const MatchFinder::MatchResult &Result,
 void CloexecCheck::replaceFunc(const MatchFinder::MatchResult &Result,
                                StringRef WarningMsg, StringRef FixMsg) {
   const auto *MatchedCall = Result.Nodes.getNodeAs<CallExpr>(FuncBindingStr);
+#if (LLVM_PACKAGE_VERSION >= 900)
   diag(MatchedCall->getBeginLoc(), WarningMsg)
+#else
+  diag(MatchedCall->getLocStart(), WarningMsg)
+#endif
       << FixItHint::CreateReplacement(MatchedCall->getSourceRange(), FixMsg);
 }
 
@@ -93,7 +105,11 @@ void CloexecCheck::insertStringFlag(
   const std::string &ReplacementText = buildFixMsgForStringFlag(
       ModeArg, *Result.SourceManager, Result.Context->getLangOpts(), Mode);
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   diag(ModeArg->getBeginLoc(), "use %0 mode '%1' to set O_CLOEXEC")
+#else
+  diag(ModeArg->getLocStart(), "use %0 mode '%1' to set O_CLOEXEC")
+#endif
       << FD << std::string(1, Mode)
       << FixItHint::CreateReplacement(ModeArg->getSourceRange(),
                                       ReplacementText);

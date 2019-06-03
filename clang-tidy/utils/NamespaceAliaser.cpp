@@ -69,7 +69,11 @@ NamespaceAliaser::createAlias(ASTContext &Context, const Stmt &Statement,
         (llvm::Twine("\nnamespace ") + Abbreviation + " = " + Namespace + ";")
             .str();
     SourceLocation Loc =
+#if (LLVM_PACKAGE_VERSION >= 900)
         Lexer::getLocForEndOfToken(Function->getBody()->getBeginLoc(), 0,
+#else
+        Lexer::getLocForEndOfToken(Function->getBody()->getLocStart(), 0,
+#endif
                                    SourceMgr, Context.getLangOpts());
     AddedAliases[Function][Namespace.str()] = Abbreviation;
     return FixItHint::CreateInsertion(Loc, Declaration);

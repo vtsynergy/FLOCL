@@ -41,14 +41,22 @@ void DurationDivisionCheck::check(const MatchFinder::MatchResult &result) {
   diag(OpCall->getOperatorLoc(),
        "operator/ on absl::Duration objects performs integer division; "
        "did you mean to use FDivDuration()?")
+#if (LLVM_PACKAGE_VERSION >= 900)
       << FixItHint::CreateInsertion(OpCall->getBeginLoc(),
+#else
+      << FixItHint::CreateInsertion(OpCall->getLocStart(),
+#endif
                                     "absl::FDivDuration(")
       << FixItHint::CreateReplacement(
              SourceRange(OpCall->getOperatorLoc(), OpCall->getOperatorLoc()),
              ", ")
       << FixItHint::CreateInsertion(
              Lexer::getLocForEndOfToken(
+#if (LLVM_PACKAGE_VERSION >= 900)
                  result.SourceManager->getSpellingLoc(OpCall->getEndLoc()), 0,
+#else
+                 result.SourceManager->getSpellingLoc(OpCall->getLocEnd()), 0,
+#endif
                  *result.SourceManager, result.Context->getLangOpts()),
              ")");
 }

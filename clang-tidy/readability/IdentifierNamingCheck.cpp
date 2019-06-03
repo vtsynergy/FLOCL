@@ -19,6 +19,11 @@
 
 #define DEBUG_TYPE "clang-tidy"
 
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#undef getEndLoc
+#endif
+
 using namespace clang::ast_matchers;
 
 namespace llvm {

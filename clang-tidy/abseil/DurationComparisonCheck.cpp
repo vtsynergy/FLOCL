@@ -51,7 +51,11 @@ void DurationComparisonCheck::check(const MatchFinder::MatchResult &Result) {
   std::string RhsReplacement =
       rewriteExprFromNumberToDuration(Result, *Scale, Binop->getRHS());
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   diag(Binop->getBeginLoc(), "perform comparison in the duration domain")
+#else
+  diag(Binop->getLocStart(), "perform comparison in the duration domain")
+#endif
       << FixItHint::CreateReplacement(Binop->getSourceRange(),
                                       (llvm::Twine(LhsReplacement) + " " +
                                        Binop->getOpcodeStr() + " " +

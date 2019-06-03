@@ -27,8 +27,12 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
+#if (LLVM_PACKAGE_VERSION >= 900)
                           const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
+#else
+                          const Module *Imported) override;
+#endif
   void EndOfMainFile() override;
 
 private:
@@ -76,8 +80,12 @@ static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
 void IncludeOrderPPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
     bool IsAngled, CharSourceRange FilenameRange, const FileEntry *File,
+#if (LLVM_PACKAGE_VERSION >= 900)
     StringRef SearchPath, StringRef RelativePath, const Module *Imported,
     SrcMgr::CharacteristicKind FileType) {
+#else
+    StringRef SearchPath, StringRef RelativePath, const Module *Imported) {
+#endif
   // We recognize the first include as a special main module header and want
   // to leave it in the top position.
   IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};

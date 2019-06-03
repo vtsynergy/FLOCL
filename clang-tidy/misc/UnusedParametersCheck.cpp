@@ -73,7 +73,11 @@ static FixItHint removeArgument(const MatchFinder::MatchResult &Result,
 class UnusedParametersCheck::IndexerVisitor
     : public RecursiveASTVisitor<IndexerVisitor> {
 public:
+#if (LLVM_PACKAGE_VERSION >= 900)
   IndexerVisitor(ASTContext &Ctx) { TraverseAST(Ctx); }
+#else
+  IndexerVisitor(TranslationUnitDecl *Top) { TraverseDecl(Top); }
+#endif
 
   const std::unordered_set<const CallExpr *> &
   getFnCalls(const FunctionDecl *Fn) {
@@ -135,7 +139,11 @@ void UnusedParametersCheck::warnOnUnusedParameter(
   auto MyDiag = diag(Param->getLocation(), "parameter %0 is unused") << Param;
 
   if (!Indexer) {
+#if (LLVM_PACKAGE_VERSION >= 900)
     Indexer = llvm::make_unique<IndexerVisitor>(*Result.Context);
+#else
+    Indexer = llvm::make_unique<IndexerVisitor>(Result.Context->getTranslationUnitDecl());
+#endif
   }
 
   // Comment out parameter name for non-local functions.

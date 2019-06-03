@@ -60,6 +60,7 @@ static StringRef getValueOfValueInit(const QualType InitType) {
     return getValueOfValueInit(
         InitType->getAs<ComplexType>()->getElementType());
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   case Type::STK_FixedPoint:
     switch (InitType->getAs<BuiltinType>()->getKind()) {
     case BuiltinType::ShortAccum:
@@ -101,6 +102,7 @@ static StringRef getValueOfValueInit(const QualType InitType) {
     default:
       llvm_unreachable("Unhandled fixed point BuiltinType");
     }
+#endif
   }
   llvm_unreachable("Invalid scalar type kind");
 }

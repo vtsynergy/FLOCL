@@ -898,7 +898,11 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   // variable declared inside the loop outside of it.
   // FIXME: Determine when the external dependency isn't an expression converted
   // by another loop.
+#if (LLVM_PACKAGE_VERSION >= 900)
   TUInfo->getParentFinder().gatherAncestors(*Context);
+#else
+  TUInfo->getParentFinder().gatherAncestors(Context->getTranslationUnitDecl());
+#endif
   DependencyFinderASTVisitor DependencyFinder(
       &TUInfo->getParentFinder().getStmtToParentStmtMap(),
       &TUInfo->getParentFinder().getDeclToParentStmtMap(),

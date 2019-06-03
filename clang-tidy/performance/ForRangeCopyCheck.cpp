@@ -12,7 +12,11 @@
 #include "../utils/Matchers.h"
 #include "../utils/OptionsUtils.h"
 #include "../utils/TypeTraits.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
 #include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
+#else
+#include "../utils/ExprMutationAnalyzer.h"
+#endif
 
 using namespace clang::ast_matchers;
 
@@ -97,7 +101,11 @@ bool ForRangeCopyCheck::handleCopyIsOnlyConstReferenced(
   // Because the fix (changing to `const auto &`) will introduce an unused
   // compiler warning which can't be suppressed.
   // Since this case is very rare, it is safe to ignore it.
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (!ExprMutationAnalyzer(*ForRange.getBody(), Context).isMutated(&LoopVar) &&
+#else
+  if (!utils::ExprMutationAnalyzer(*ForRange.getBody(), Context).isMutated(&LoopVar) &&
+#endif
       !utils::decl_ref_expr::allDeclRefExprs(LoopVar, *ForRange.getBody(),
                                              Context)
            .empty()) {

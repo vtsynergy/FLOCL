@@ -65,7 +65,11 @@ void DurationAdditionCheck::check(const MatchFinder::MatchResult &Result) {
             .str());
   }
 
+#if (LLVM_PACKAGE_VERSION >= 900)
   diag(Binop->getBeginLoc(), "perform addition in the duration domain") << Hint;
+#else
+  diag(Binop->getLocStart(), "perform addition in the duration domain") << Hint;
+#endif
 }
 
 } // namespace abseil

@@ -107,7 +107,12 @@ PropertyDeclarationCheck::PropertyDeclarationCheck(StringRef Name,
 
 void PropertyDeclarationCheck::registerMatchers(MatchFinder *Finder) {
   // this check should only be applied to ObjC sources.
-  if (!getLangOpts().ObjC) return;
+#if (LLVM_PACKAGE_VERSION >= 900)
+  if (!getLangOpts().ObjC)
+#else
+  if (!getLangOpts().ObjC1 && !getLangOpts().ObjC2)
+#endif
+  return;
 
   Finder->addMatcher(
       objcPropertyDecl(

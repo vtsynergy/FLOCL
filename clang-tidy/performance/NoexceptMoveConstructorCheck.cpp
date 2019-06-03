@@ -55,7 +55,11 @@ void NoexceptMoveConstructorCheck::check(
 
     // Don't complain about nothrow(false), but complain on nothrow(expr)
     // where expr evaluates to false.
+#if (LLVM_PACKAGE_VERSION >= 900)
     if (ProtoType->canThrow() == CT_Can) {
+#else
+    if (ProtoType->canThrow(*Result.Context) == CT_Can) {
+#endif
       Expr *E = ProtoType->getNoexceptExpr();
       E = E->IgnoreImplicit();
       if (!isa<CXXBoolLiteralExpr>(E)) {

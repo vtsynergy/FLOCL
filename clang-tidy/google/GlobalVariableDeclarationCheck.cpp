@@ -54,7 +54,11 @@ FixItHint generateFixItHint(const VarDecl *Decl, bool IsConst) {
 
 void GlobalVariableDeclarationCheck::registerMatchers(MatchFinder *Finder) {
   // The relevant Style Guide rule only applies to Objective-C.
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (!getLangOpts().ObjC)
+#else
+  if (!getLangOpts().ObjC1 && !getLangOpts().ObjC2)
+#endif
     return;
 
   // need to add two matchers since we need to bind different ids to distinguish

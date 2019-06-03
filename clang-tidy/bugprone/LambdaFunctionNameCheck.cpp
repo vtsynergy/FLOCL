@@ -72,15 +72,24 @@ void LambdaFunctionNameCheck::registerPPCallbacks(CompilerInstance &Compiler) {
 
 void LambdaFunctionNameCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *E = Result.Nodes.getNodeAs<PredefinedExpr>("E");
+#if (LLVM_PACKAGE_VERSION >= 900)
   if (E->getIdentKind() != PredefinedExpr::Func &&
       E->getIdentKind() != PredefinedExpr::Function) {
+#else
+  if (E->getIdentType() != PredefinedExpr::Func &&
+      E->getIdentType() != PredefinedExpr::Function) {
+#endif
     // We don't care about other PredefinedExprs.
     return;
   }
   if (E->getLocation().isMacroID()) {
     auto ER =
         Result.SourceManager->getImmediateExpansionRange(E->getLocation());
+#if (LLVM_PACKAGE_VERSION >= 900)
     if (SuppressMacroExpansions.find(ER.getAsRange()) !=
+#else
+    if (SuppressMacroExpansions.find(SourceRange(ER.first, ER.second)) !=
+#endif
         SuppressMacroExpansions.end()) {
       // This is a macro expansion for which we should not warn.
       return;
@@ -90,7 +99,11 @@ void LambdaFunctionNameCheck::check(const MatchFinder::MatchResult &Result) {
        "inside a lambda, '%0' expands to the name of the function call "
        "operator; consider capturing the name of the enclosing function "
        "explicitly")
+#if (LLVM_PACKAGE_VERSION >= 900)
       << PredefinedExpr::getIdentKindName(E->getIdentKind());
+#else
+      << PredefinedExpr::getIdentTypeName(E->getIdentType());
+#endif
 }
 
 } // namespace bugprone

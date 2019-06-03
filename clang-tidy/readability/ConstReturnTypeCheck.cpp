@@ -14,6 +14,12 @@
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/Optional.h"
 
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#undef getBeginLoc
+#undef getEndLoc
+#endif
+
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -41,7 +47,11 @@ findConstToRemove(const FunctionDecl *Def,
   // sure that we have a consistent `CharSourceRange`, located entirely in the
   // source file.
   CharSourceRange FileRange = Lexer::makeFileCharRange(
+#if (LLVM_PACKAGE_VERSION >= 900)
       CharSourceRange::getCharRange(Def->getBeginLoc(), NameBeginLoc),
+#else
+      CharSourceRange::getCharRange(Def->getLocStart(), NameBeginLoc),
+#endif
       *Result.SourceManager, Result.Context->getLangOpts());
 
   if (FileRange.isInvalid())

@@ -525,7 +525,11 @@ void SimplifyBooleanExprCheck::registerMatchers(MatchFinder *Finder) {
 
 void SimplifyBooleanExprCheck::check(const MatchFinder::MatchResult &Result) {
   if (Result.Nodes.getNodeAs<TranslationUnitDecl>("top"))
+#if (LLVM_PACKAGE_VERSION >= 900)
     Visitor(this, Result).TraverseAST(*Result.Context);
+#else
+    Visitor(this, Result).TraverseDecl(const_cast<Decl*>(Result.Nodes.getNodeAs<Decl>("top")));
+#endif
   else if (const CXXBoolLiteralExpr *TrueConditionRemoved =
                getBoolLiteral(Result, ConditionThenStmtId))
     replaceWithThenStatement(Result, TrueConditionRemoved);

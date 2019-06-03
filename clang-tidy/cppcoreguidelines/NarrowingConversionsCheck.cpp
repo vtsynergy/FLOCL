@@ -13,6 +13,10 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#if (LLVM_PACKAGE_VERSION >= 900)
+#else
+#include "../utils/Matchers.h"
+#endif
 
 #include <cstdint>
 
@@ -49,7 +53,11 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
 
   // Binary operators:
   //   i += 0.5;
+#if (LLVM_PACKAGE_VERSION >= 900)
   Finder->addMatcher(binaryOperator(isAssignmentOperator(),
+#else
+  Finder->addMatcher(binaryOperator(clang::tidy::matchers::isAssignmentOperator(),
+#endif
                                     hasLHS(expr(hasType(builtinType()))),
                                     hasRHS(expr(hasType(builtinType()))),
                                     unless(hasRHS(IsCeilFloorCallExpr)),

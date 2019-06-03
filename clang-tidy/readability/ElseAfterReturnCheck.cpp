@@ -24,16 +24,24 @@ void ElseAfterReturnCheck::registerMatchers(MatchFinder *Finder) {
                  expr(ignoringImplicit(cxxThrowExpr().bind("throw")))));
   Finder->addMatcher(
       compoundStmt(forEach(
+#if (LLVM_PACKAGE_VERSION >= 900)
           ifStmt(unless(isConstexpr()),
+#else
+          ifStmt(
+#endif
                  // FIXME: Explore alternatives for the
                  // `if (T x = ...) {... return; } else { <use x> }`
                  // pattern:
                  //   * warn, but don't fix;
                  //   * fix by pulling out the variable declaration out of
                  //     the condition.
+#if (LLVM_PACKAGE_VERSION >= 900)
                  unless(hasConditionVariableStatement(anything())),
                  hasThen(stmt(anyOf(InterruptsControlFlow,
                                     compoundStmt(has(InterruptsControlFlow))))),
+#else
+hasThen(stmt(anyOf(InterruptsControlFlow, compoundStmt(has(InterruptsControlFlow))))),
+#endif
                  hasElse(stmt().bind("else")))
               .bind("if"))),
       this);

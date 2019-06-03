@@ -78,6 +78,7 @@ private:
                  SourceLocation Loc, StringRef Description,
                  SourceRange ReplacementRange, StringRef Replacement);
 
+  bool MatchedOnce = false;
   const bool ChainedConditionalReturn;
   const bool ChainedConditionalAssignment;
 };

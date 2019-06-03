@@ -48,7 +48,9 @@ void ClangTidyProfiling::printAsJSON(llvm::raw_ostream &OS) {
   OS << "\"file\": \"" << Storage->SourceFilename << "\",\n";
   OS << "\"timestamp\": \"" << Storage->Timestamp << "\",\n";
   OS << "\"profile\": {\n";
+#if (LLVM_PACKAGE_VERSION >= 900)
   TG->printJSONValues(OS, "");
+#endif
   OS << "\n}\n";
   OS << "}\n";
   OS.flush();
@@ -80,7 +82,11 @@ ClangTidyProfiling::ClangTidyProfiling(llvm::Optional<StorageParams> Storage)
     : Storage(std::move(Storage)) {}
 
 ClangTidyProfiling::~ClangTidyProfiling() {
+#if (LLVM_PACKAGE_VERSION >= 900)
   TG.emplace("clang-tidy", "clang-tidy checks profiling", Records);
+#else
+  TG.emplace("clang-tidy", "clang-tidy checks profiling");
+#endif
 
   if (!Storage.hasValue())
     printUserFriendlyTable(llvm::errs());

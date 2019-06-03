@@ -41,7 +41,11 @@ public:
       return;
 
     if (IgnoreCommandLineMacros &&
+#if (LLVM_PACKAGE_VERSION >= 900)
         SM.isWrittenInCommandLineFile(MD->getLocation()))
+#else
+        std::string(SM.getPresumedLoc(MD->getLocation()).getFilename()).compare("<command line>") == 0)
+#endif
       return;
 
     StringRef MacroName = MacroNameTok.getIdentifierInfo()->getName();

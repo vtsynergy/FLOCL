@@ -44,8 +44,13 @@ bool exprHasBitFlagWithSpelling(const Expr *Flags, const SourceManager &SM,
                                 StringRef FlagName) {
   // If the Flag is an integer constant, check it.
   if (isa<IntegerLiteral>(Flags)) {
+#if (LLVM_PACKAGE_VERSION >= 900)
     if (!SM.isMacroBodyExpansion(Flags->getBeginLoc()) &&
         !SM.isMacroArgExpansion(Flags->getBeginLoc()))
+#else
+    if (!SM.isMacroBodyExpansion(Flags->getLocStart()) &&
+        !SM.isMacroArgExpansion(Flags->getLocStart()))
+#endif
       return false;
 
     // Get the macro name.
