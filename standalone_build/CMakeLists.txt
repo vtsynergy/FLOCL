@@ -1,19 +1,21 @@
 #Testing out-of-source build, only tested on Ubuntu 18.04 with Apt libclang-6.0-dev install
+#This is really hacky and is likely non-portable
 
 #required variable configurations
-#set(LIBRARY_DIR "/usr/lib/llvm-6.0/lib")
 set(LLVM_MAIN_INCLUDE_DIR "/usr/lib/llvm-6.0/include")
 include_directories(${LLVM_MAIN_INCLUDE_DIR})
-#set(INCLUDE_DIR "/usr/lib/llvm-6.0/include")
-#set(LLVM_BINARY_DIR "/usr/lib/llvm-6.0/")
-#set(LLVM_CMAKE_PATH "usr/lib/llvm-6.0/lib/cmake/llvm")
-#set(LLVM_ALL_TARGETS "clang-tidy")
-#set(LLVM_TARGETS_TO_BUILD "clang-tidy")
+set(LLVM_LIBRARY_DIR "/usr/lib/llvm-6.0/lib")
+set(CLANG_LIBRARY_DIR "/usr/lib/llvm-6.0/lib")
+link_directories(${LLVM_LIBRARY_DIR})
+set(CMAKE_CXX_FLAGS "-fno-rtti")
 if(POLICY CMP0057)
 	cmake_policy(SET CMP0057 NEW)
 endif()
 if(POLICY CMP0022)
 	cmake_policy(SET CMP0022 NEW)
+endif()
+if(POLICY CMP0003)
+	cmake_policy(SET CMP0003 NEW)
 endif()
 
 #dependencies
@@ -25,7 +27,7 @@ include(AddLLVM)
 include(AddClang.cmake)
 string(REPLACE "." "" INT_LLVM_PACKAGE_VERSION ${LLVM_PACKAGE_VERSION})
 add_definitions(-DLLVM_PACKAGE_VERSION=${INT_LLVM_PACKAGE_VERSION})
-
-#include(../CMakeLists.txt)
-#add_subdirectory(flocl)
+#from /usr/share/llvm-6.0/cmake with modifications (it's unusable directly from disk but specifies the dependency information needed to link all the sub libraries in the correct order)
+include(ClangTargets.cmake)
+set(CLANG_ENABLE_STATIC_ANALYZER TRUE)
 add_subdirectory(flocl/clang-tidy)

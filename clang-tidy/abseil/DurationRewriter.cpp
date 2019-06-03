@@ -124,7 +124,7 @@ llvm::StringRef getTimeInverseForScale(DurationScale scale) {
 
 #if (LLVM_PACKAGE_VERSION >= 900)
 #else
-extern const ast_matchers::internal::VariadicDynCastAllOfMatcher<Stmt, InitListExpr> initListExpr;
+const ast_matchers::internal::VariadicDynCastAllOfMatcher<Stmt, InitListExpr> initListExpr;
 
 AST_MATCHER_P(InitListExpr, hasSyntacticForm, ast_matchers::internal::Matcher<Expr>, InnerMatcher) {
 	const Expr *SyntForm = Node.getSyntacticForm();
