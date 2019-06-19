@@ -1,19 +1,27 @@
 // RUN: %check_clang_tidy %s FPGA-ID-dependent-backward-branch %t -- -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h 
 
-// Mock up essential functions
-/*int get_local_id(int a) {
-  return a;
-}
-
-int get_local_size(int a) {
-  return a;  
-}*/
+typedef struct ExampleStruct {
+  int IdDepField;
+} ExampleStruct;
 
 void error() {
+  // ==== Assignments ====
   int tid = get_local_id(0);
 // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: assignment of ID-dependent variable 'tid' declared at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 [FPGA-ID-dependent-backward-branch]
+
+  ExampleStruct Example;
+  Example.IdDepField = get_local_id(0);
+  // Will not produce warning, but probably should
+
+  // ==== Inferred Assignments ====
   int tx = tid*get_local_size(0);
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: Inferred assignment of ID-dependent value from ID-dependent variable 'tid' [FPGA-ID-dependent-backward-branch]
+  
+
+  // ==== Conditional Expressions ====
+
+
+  /** =========MAYBE DELETE?===========
   for(int i = 0; i < 256; i++) {
     if (i < tid) {
       // XCHECK-MESSAGES: :[[@LINE-1]]:9: warning: Conditional inside loop is ID-dependent due to variable reference to 'tid' [FPGA-ID-dependent-backward-branch]
@@ -41,6 +49,7 @@ void error() {
     }
     j++;
   } while (j < 256);
+  */
 }
 
 void success() {
