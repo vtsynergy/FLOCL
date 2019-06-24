@@ -1,8 +1,16 @@
-// RUN: %check_clang_tidy %s FPGA-ID-dependent-backward-branch %t -- -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h 
+// RUN: %check_clang_tidy %s FPGA-ID-dependent-backward-branch %t -- -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h
 
 typedef struct ExampleStruct {
-  int IdDepField;
+  int IDDepField;
 } ExampleStruct;
+
+class ExampleClass {
+  public:
+  int IDDepField;
+  ExampleClass(int x) {
+    IDDepField = x;
+  }
+};
 
 void error() {
   // ==== Assignments ====
@@ -10,14 +18,21 @@ void error() {
 // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: assignment of ID-dependent variable 'tid' declared at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 [FPGA-ID-dependent-backward-branch]
 
   ExampleStruct Example;
-  Example.IdDepField = get_local_id(0);
+  Example.IDDepField = get_local_id(0);
   // Will not produce warning, but probably should
 
   // ==== Inferred Assignments ====
-  int tx = tid*get_local_size(0);
+  int tx = tid * get_local_size(0);
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: Inferred assignment of ID-dependent value from ID-dependent variable 'tid' [FPGA-ID-dependent-backward-branch]
-  
+  int tx2 = Example.IDDepField;
+// CHECK-MESSAGES: :[[@LINE-1]]:13: warning: Inferred assignment of ID-dependent value from ID-dependent member 'IDDepField' [FPGA-ID-dependent-backward-branch]
 
+  ExampleStruct Example2 = {
+    tid * 2
+  };
+
+  ExampleClass Example3(tid);
+  // Example2.IDDepField = Example.IDDepField * 2;
   // ==== Conditional Expressions ====
 
 
