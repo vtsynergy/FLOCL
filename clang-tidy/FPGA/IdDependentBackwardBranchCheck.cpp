@@ -232,7 +232,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       if(std::find(IDDepVars.begin(), IDDepVars.end(), Variable) == IDDepVars.end()) {
         IDDepVars.push_back(Variable);
       }
-    diag(Statement->getBeginLoc(), "assignment of ID-dependent variable %0 declared at %1")
+    diag(Statement->getBeginLoc(), "assignment of ID-dependent variable %0 declared at %1", DiagnosticIDs::Error)
 	<< Variable
 	<< Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
     } else if (Field) {
@@ -241,18 +241,18 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       }
     }
   } else if (Statement) {
-	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent variable or field");
+	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent variable or field", DiagnosticIDs::Note);
   } else if (Variable) {
-	diag(Variable->getBeginLoc(), "variable seems thread dependent, but can't figure out statement");
+	diag(Variable->getBeginLoc(), "variable seems thread dependent, but can't figure out statement", DiagnosticIDs::Note);
   } else if (Field) {
-	diag(Field->getBeginLoc(), "field seems thread dependent, but can't figure out statement");
+	diag(Field->getBeginLoc(), "field seems thread dependent, but can't figure out statement", DiagnosticIDs::Note);
   }
   if ((RefExpr || MemExpr) && PotentialVar) {
    if (RefExpr) {
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
       if(std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) == IDDepVars.end() && std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) != IDDepVars.end()) {
         IDDepVars.push_back(PotentialVar);
-        diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent variable %0")
+        diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent variable %0", DiagnosticIDs::Note)
 	  << RefVar;
       }
     }
@@ -260,7 +260,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       const auto RefField = dyn_cast<FieldDecl>(MemExpr->getMemberDecl());
       if(std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) == IDDepVars.end() && std::find(IDDepFields.begin(), IDDepFields.end(), RefField) != IDDepFields.end()) {
         IDDepVars.push_back(PotentialVar);
-        diag(MemExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent member %0")
+        diag(MemExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent member %0", DiagnosticIDs::Note)
 	  << RefField;
       }
     }
@@ -270,7 +270,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
       if(std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) == IDDepFields.end() && std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) != IDDepVars.end()) {
         IDDepFields.push_back(PotentialField);
-        diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent member from ID-dependent variable %0")
+        diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent member from ID-dependent variable %0", DiagnosticIDs::Note)
 	  << RefVar;
       }
     }
@@ -278,7 +278,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       const auto RefField = dyn_cast<FieldDecl>(MemExpr->getMemberDecl());
       if(std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) == IDDepFields.end() && std::find(IDDepFields.begin(), IDDepFields.end(), RefField) != IDDepFields.end()) {
         IDDepFields.push_back(PotentialField);
-        diag(MemExpr->getBeginLoc(), "Inferred assignment of ID-dependent member from ID-dependent member %0")
+        diag(MemExpr->getBeginLoc(), "Inferred assignment of ID-dependent member from ID-dependent member %0", DiagnosticIDs::Note)
 	  << RefField;
       }
     }
