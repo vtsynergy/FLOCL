@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy -expect-clang-tidy-error %s OpenCL-recursion-not-supported %t -- -config="{CheckOptions: [{key: "OpenCL-recursion-not-supported.MaxRecursionDepth", value: 3}]}" -header-filter=.* "--" --include opencl-c.h -cl-std=CL1.2 -c
+// RUN: %check_clang_tidy -expect-clang-tidy-error %s opencl-recursion-not-supported %t -- -config="{CheckOptions: [{key: "opencl-recursion-not-supported.MaxRecursionDepth", value: 3}]}" -header-filter=.* "--" --include opencl-c.h -cl-std=CL1.2 -c
 
 // Simple recursive function should trigger an error
 void recfun() {
