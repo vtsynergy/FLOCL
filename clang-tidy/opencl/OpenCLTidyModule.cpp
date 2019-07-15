@@ -24,9 +24,9 @@ class OpenCLModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<PossiblyUnreachableBarrierCheck>(
-        "OpenCL-possibly-unreachable-barrier");
+        "opencl-possibly-unreachable-barrier");
     CheckFactories.registerCheck<RecursionNotSupportedCheck>(
-        "OpenCL-recursion-not-supported");
+        "opencl-recursion-not-supported");
   }
 };
 
