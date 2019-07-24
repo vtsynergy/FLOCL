@@ -52,7 +52,7 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
   // about earlier)
   const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("function");
   const auto *MatchedBarrier = Result.Nodes.getNodeAs<CallExpr>("barrier");
-  if (aoc_version < 1701) {
+  if (AOCVersion < 1701) {
     diag(MatchedDecl->getLocation(),
          "Kernel function %0 does not call get_global_id or get_local_id and "
          "will be treated as single-work-item.\nBarrier call at %1 may error "
@@ -75,7 +75,7 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
 
 void SingleWorkItemBarrierCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "aoc_version", aoc_version);
+  Options.store(Opts, "AOCVersion", AOCVersion);
 }
 
 } // namespace FPGA

@@ -1,7 +1,7 @@
 // RUN: %check_clang_tidy -check-suffix=OLD %s FPGA-single-work-item-barrier %t -- -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h -DOLD
 // RUN: %check_clang_tidy -check-suffix=NEW %s FPGA-single-work-item-barrier %t -- -header-filter=.* "--" -cl-std=CL2.0 -c --include opencl-c.h -DNEW
-// RUN: %check_clang_tidy -check-suffix=AOCOLD %s FPGA-single-work-item-barrier %t -- -config='{CheckOptions: [{key: FPGA-single-work-item-barrier.aoc_version, value: 1701}]}' -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h -DAOCOLD
-// RUN: %check_clang_tidy -check-suffix=AOCNEW %s FPGA-single-work-item-barrier %t -- -config='{CheckOptions: [{key: FPGA-single-work-item-barrier.aoc_version, value: 1701}]}' -header-filter=.* "--" -cl-std=CL2.0 -c --include opencl-c.h -DAOCNEW
+// RUN: %check_clang_tidy -check-suffix=AOCOLD %s FPGA-single-work-item-barrier %t -- -config='{CheckOptions: [{key: FPGA-single-work-item-barrier.AOCVersion, value: 1701}]}' -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h -DAOCOLD
+// RUN: %check_clang_tidy -check-suffix=AOCNEW %s FPGA-single-work-item-barrier %t -- -config='{CheckOptions: [{key: FPGA-single-work-item-barrier.AOCVersion, value: 1701}]}' -header-filter=.* "--" -cl-std=CL2.0 -c --include opencl-c.h -DAOCNEW
 
 #ifdef OLD
 void __kernel error_barrier_no_id(__global int * foo, int size) {
