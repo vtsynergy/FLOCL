@@ -70,7 +70,7 @@ void error() {
 
   do {
     accumulator++;
-  } while (j < tid);
+  } while (j < Example.IDDepField);
   // CHECK-NOTES: :[[@LINE-1]]:16: warning: Backward branch (do loop) is ID-dependent due to member reference to 'IDDepField' and may cause performance degradation [FPGA-ID-dependent-backward-branch]
 }
 
