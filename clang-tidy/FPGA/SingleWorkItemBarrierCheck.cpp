@@ -24,12 +24,11 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
   // TODO: Have it accept all functions but check for a parameter that gets an
   // ID from one of the two ID functions
   Finder->addMatcher(
-    //Find function declarations
+    // Find function declarations
     functionDecl(allOf(
-      //That are OpenCL kernels
+      // That are OpenCL kernels
       hasAttr(attr::Kind::OpenCLKernel),
-      //And call a barrier function (either 1.x or 2.x version)
-      //hasDescendant(callExpr(callee(
+      // And call a barrier function (either 1.x or 2.x version)
       forEachDescendant(callExpr(callee(
         functionDecl(anyOf(
           hasName("barrier"),
