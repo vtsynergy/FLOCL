@@ -16,7 +16,9 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
-/// FIXME: Write a short description.
+/// Detects OpenCL kernel functions that call a barrier but do not call an
+/// ID-function function. These functions will be treated as single work-item
+/// kernels, which may be inefficient or cause an error.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/OpenCL-single-work-item-barrier.html

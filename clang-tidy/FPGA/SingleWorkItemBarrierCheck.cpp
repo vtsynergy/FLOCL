@@ -47,7 +47,7 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
-  //TODO: Support reqd_work_group_size attribute (if it is anything other than
+  // TODO: Support reqd_work_group_size attribute (if it is anything other than
   // (1,1,1) it will be interpreted as an NDRange (at least in 17.1, don't know
   // about earlier)
   const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("function");
