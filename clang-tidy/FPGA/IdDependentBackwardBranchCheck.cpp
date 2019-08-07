@@ -217,14 +217,15 @@ const MemberExpr * IdDependentBackwardBranchCheck::hasIDDepMember(const Expr * e
   return NULL; //Should be unreachable
 }
 
-std::pair<std::string, std::string> IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
+std::pair<std::string, std::vector<std::pair<SourceLocation, std::string>>> 
+IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
   if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(Expression)) {
     // It is a DeclRefExpr, so check if it's an ID-dependent variable
     std::string CheckVariable = dyn_cast<VarDecl>(expr->getDecl())->getNameAsString();
     auto FoundVariable = IDDepVarsMap.find(CheckVariable);
     if (FoundVariable == IDDepVarsMap.end()) {
       // diag(expr->getBeginLoc(), "Did not find variable %0 in IDDepVarsMap") << CheckVariable;
-      return std::make_pair("","");
+      return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
     }
     // diag(expr->getBeginLoc(), "Found variable %0 in IDDepVarsMap") << CheckVariable;
     return std::make_pair(FoundVariable->first, FoundVariable->second);
@@ -238,7 +239,7 @@ std::pair<std::string, std::string> IdDependentBackwardBranchCheck::hasIDDepVar(
     }
   } 
   // diag(Expression->getBeginLoc(), "Is not a DeclRefExpr");
-  return std::make_pair("","");
+  return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
 }
 
 std::string IdDependentBackwardBranchCheck::hasIDDepField(const Expr * Expression) {
@@ -265,7 +266,12 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       StringStream << "\t" << "assignment of ID-dependent variable " << Variable->getNameAsString() << " declared at "
           << Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
       // diag(Variable->getLocation(), "%0 | %1") << Variable->getNameAsString() << StringStream.str();
-      IDDepVarsMap[Variable->getNameAsString()] = StringStream.str();
+      auto FoundVariable = IDDepVarsMap.find(Variable->getNameAsString());
+      if (FoundVariable == IDDepVarsMap.end()) {  // Put empty list if there isn't one already
+        IDDepVarsMap[Variable->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
+      }
+      // Add location and string to variable's "error" list
+      IDDepVarsMap[Variable->getNameAsString()].push_back(std::make_pair(Variable->getBeginLoc(), StringStream.str()));
       //diag(Statement->getBeginLoc(), "assignment of ID-dependent variable %0 declared at %1", DiagnosticIDs::Note)
 	  //<< Variable
 	  //<< Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
