@@ -32,3 +32,13 @@ Examples:
     }
     barrier(CLK_GLOBAL_MEM_FENCE);
   }
+  
+  // ok with AOC Version 17.01: the reqd_work_group_size turns this into
+  // an NDRange
+  __attribute__((reqd_work_group_size(2,2,2)))
+  void __kernel barrier_with_id(__global int * foo, int size) {
+    for (int i = 0; i < 100; i++) {
+      foo[tid] += 5;
+    }
+    barrier(CLK_GLOBAL_MEM_FENCE);
+  }
