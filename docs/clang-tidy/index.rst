@@ -65,7 +65,7 @@ Name prefix            Description
 ``cppcoreguidelines-`` Checks related to C++ Core Guidelines.
 ``clang-analyzer-``    Clang Static Analyzer checks.
 ``fuchsia-``           Checks related to Fuchsia coding conventions.
-``FPGA-``              Checks related to OpenCL for FPGAs coding guidelines.
+``fpga-``              Checks related to OpenCL for FPGAs coding guidelines.
 ``OpenCL-``            Checks related to OpenCL coding guidelines.
 ``google-``            Checks related to Google coding conventions.
 ``hicpp-``             Checks related to High Integrity C++ Coding Standard.
