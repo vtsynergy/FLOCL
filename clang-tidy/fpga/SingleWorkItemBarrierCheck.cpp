@@ -46,11 +46,21 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
-  // TODO: Support reqd_work_group_size attribute (if it is anything other than
-  // (1,1,1) it will be interpreted as an NDRange (at least in 17.1, don't know
-  // about earlier)
   const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("function");
   const auto *MatchedBarrier = Result.Nodes.getNodeAs<CallExpr>("barrier");
+  // If reqd_work_group_size is anything other than (1,1,1), it will be
+  // interpreted as an NDRange in AOC version 17.1.
+  bool IsNDRange = false;
+  for (Attr * Attribute : MatchedDecl->getAttrs()) {
+    if (Attribute->getKind() == attr::Kind::ReqdWorkGroupSize) {
+      auto RWGSAttribute = static_cast<const ReqdWorkGroupSizeAttr*>(Attribute);
+      if (RWGSAttribute->getXDim() > 1 || RWGSAttribute->getYDim() > 1 ||
+          RWGSAttribute->getZDim() > 1) {
+        IsNDRange = true;
+      }
+      break;
+    }
+  }
   if (AOCVersion < 1701) {
     diag(MatchedDecl->getLocation(),
          "Kernel function %0 does not call get_global_id or get_local_id and "
@@ -60,6 +70,9 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
         << MatchedBarrier->getBeginLoc().printToString(
                 Result.Context->getSourceManager());
   } else {
+    if (IsNDRange == true) {  // No warning if kernel is treated as an NDRange
+      return;
+    }
     diag(MatchedDecl->getLocation(), 
          "Kernel function %0 does not call get_global_id or get_local_id may "
          "be a viable single work-item kernel, but barrier call at %1 will "
