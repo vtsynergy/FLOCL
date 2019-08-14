@@ -1,6 +1,6 @@
-.. title:: clang-tidy - FPGA-kernel-name-restriction
+.. title:: clang-tidy - fpga-kernel-name-restriction
 
-FPGA-kernel-name-restriction
+fpga-kernel-name-restriction
 ============================
 
 Finds kernel files and include directives whose filename is "kernel.cl", 
