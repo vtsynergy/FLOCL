@@ -27,15 +27,15 @@ class FPGAModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<IdDependentBackwardBranchCheck>(
-        "FPGA-ID-dependent-backward-branch");
+        "fpga-id-dependent-backward-branch");
     CheckFactories.registerCheck<KernelNameRestrictionCheck>(
-        "FPGA-kernel-name-restriction");
+        "fpga-kernel-name-restriction");
     CheckFactories.registerCheck<SingleWorkItemBarrierCheck>(
-        "FPGA-single-work-item-barrier");
+        "fpga-single-work-item-barrier");
     CheckFactories.registerCheck<StructPackAlignCheck>(
-        "FPGA-struct-pack-align");
+        "fpga-struct-pack-align");
     CheckFactories.registerCheck<UnrollLoopsCheck>(
-        "FPGA-unroll-loops");
+        "fpga-unroll-loops");
   }
 };
 
