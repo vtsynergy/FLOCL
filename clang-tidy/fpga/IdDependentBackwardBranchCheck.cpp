@@ -346,7 +346,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
 	    // 	<< loop_type
 	    //	<< retDeclExpr->getDecl();
       // }
-      std::pair<std::string,std::string> IDDepVar = hasIDDepVar(CondExpr);
+      std::pair<std::string, VariableUsage> IDDepVar = hasIDDepVar(CondExpr);
       // diag(CondExpr->getBeginLoc(), "Expression has this IDDepVar: %0") << IDDepVar.first;
       if (!IDDepVar.first.empty()) {
         //It has an ID-dependent reference
@@ -355,7 +355,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
 		<< loop_type
         << IDDepVar.first
 		// << retDeclExpr->getDecl()
-        << IDDepVar.second;
+        << "SomePlaceholderText";  // IDDepVar.second;
       } else if (retMemberExpr) {
         //It has an ID-dependent reference
         diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to member reference to %1 and may cause performance degradation")

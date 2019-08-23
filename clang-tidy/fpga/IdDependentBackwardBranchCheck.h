@@ -16,6 +16,8 @@ namespace clang {
 namespace tidy {
 namespace FPGA {
 
+using VariableUsage = std::vector<std::pair<SourceLocation, std::string>>;
+
 /// FIXME: Write a short description.
 ///
 /// For the user-facing documentation see:
@@ -24,7 +26,7 @@ class IdDependentBackwardBranchCheck : public ClangTidyCheck {
 private:
   std::vector<const VarDecl *> IDDepVars;
   std::vector<const FieldDecl *> IDDepFields;
-  std::map<std::string, std::pair<SourceLocation, std::string>> IDDepVarsMap;
+  std::map<std::string, VariableUsage> IDDepVarsMap;
   std::map<std::string, std::pair<const FieldDecl *, std::string>> IDDepFieldsMap;
 public:
   IdDependentBackwardBranchCheck(StringRef Name, ClangTidyContext *Context)
@@ -33,7 +35,7 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   const DeclRefExpr * hasIDDepDeclRef(const Expr * e);
   const MemberExpr * hasIDDepMember(const Expr * e);
-  std::pair<std::string, std::vector<std::pair<SourceLocation, std::string>>> hasIDDepVar(const Expr * Expression);
+  std::pair<std::string, VariableUsage> hasIDDepVar(const Expr * Expression);
   std::string hasIDDepField(const Expr * Expression);
 };
 
