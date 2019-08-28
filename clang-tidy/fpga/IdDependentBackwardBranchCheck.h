@@ -27,7 +27,7 @@ private:
   std::vector<const VarDecl *> IDDepVars;
   std::vector<const FieldDecl *> IDDepFields;
   std::map<std::string, VariableUsage> IDDepVarsMap;
-  std::map<std::string, std::pair<const FieldDecl *, std::string>> IDDepFieldsMap;
+  std::map<std::string, VariableUsage> IDDepFieldsMap;
 public:
   IdDependentBackwardBranchCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
@@ -36,7 +36,7 @@ public:
   const DeclRefExpr * hasIDDepDeclRef(const Expr * e);
   const MemberExpr * hasIDDepMember(const Expr * e);
   std::pair<std::string, VariableUsage> hasIDDepVar(const Expr * Expression);
-  std::string hasIDDepField(const Expr * Expression);
+  std::pair<std::string, VariableUsage> hasIDDepField(const Expr * Expression);
 };
 
 } // namespace FPGA

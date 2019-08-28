@@ -1,4 +1,4 @@
-//===--- IdDependentBackwardBranchCheck.cpp - clang-tidy-------------------===//
+//===--- IdDependentBackwardBranchCheck.cpp - clang-tidy ------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -217,7 +217,7 @@ const MemberExpr * IdDependentBackwardBranchCheck::hasIDDepMember(const Expr * e
   return NULL; //Should be unreachable
 }
 
-std::pair<std::string, std::vector<std::pair<SourceLocation, std::string>>> 
+std::pair<std::string, VariableUsage> 
 IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
   if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(Expression)) {
     // It is a DeclRefExpr, so check if it's an ID-dependent variable
@@ -242,8 +242,25 @@ IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
   return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
 }
 
-std::string IdDependentBackwardBranchCheck::hasIDDepField(const Expr * Expression) {
-  return NULL;
+std::pair<std::string, VariableUsage>
+IdDependentBackwardBranchCheck::hasIDDepField(const Expr * Expression) {
+  if (const MemberExpr * Expr = dyn_cast<MemberExpr>(Expression)) {
+    std::string CheckField = dyn_cast<FieldDecl>(Expr->getMemberDecl())->getNameAsString();
+    auto FoundField = IDDepFieldsMap.find(CheckField);
+    if (FoundField == IDDepFieldsMap.end()) {
+      return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
+    }
+    return std::make_pair(FoundField->first, FoundField->second);
+  }
+  for (auto I = Expression->child_begin(), E = Expression->child_end(); I != E; ++I) {
+    if (auto * ChildExpression = dyn_cast<Expr>(*I)) {
+      auto Result = hasIDDepField(ChildExpression);
+      if (!Result.first.empty()) {
+        return Result;
+      }
+    }
+  }
+  return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
 }
 
 void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Result) {
@@ -263,22 +280,30 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
         IDDepVars.push_back(Variable);
       }
       std::ostringstream StringStream;
-      StringStream << "\t" << "assignment of ID-dependent variable " << Variable->getNameAsString() << " declared at "
-          << Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
+      StringStream << "assignment of ID-dependent variable " << Variable->getNameAsString(); //  << " declared at "
+      //     << Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
       // diag(Variable->getLocation(), "%0 | %1") << Variable->getNameAsString() << StringStream.str();
       auto FoundVariable = IDDepVarsMap.find(Variable->getNameAsString());
       if (FoundVariable == IDDepVarsMap.end()) {  // Put empty list if there isn't one already
+        // diag(Statement->getBeginLoc(), "Identified IDDep variable %0 for the first time") << Variable;
         IDDepVarsMap[Variable->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
       }
       // Add location and string to variable's "error" list
+      // diag(Statement->getBeginLoc(), "added location of variable %0 to IDDepVector") << Variable;
       IDDepVarsMap[Variable->getNameAsString()].push_back(std::make_pair(Variable->getBeginLoc(), StringStream.str()));
       //diag(Statement->getBeginLoc(), "assignment of ID-dependent variable %0 declared at %1", DiagnosticIDs::Note)
 	  //<< Variable
 	  //<< Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
     } else if (Field) {
       if(std::find(IDDepFields.begin(), IDDepFields.end(), Field) == IDDepFields.end()) {
-	IDDepFields.push_back(Field);
+	    IDDepFields.push_back(Field);
       }
+      std::ostringstream StringStream;
+      StringStream << "assignment of ID-dependent field " << Field->getNameAsString();
+      if (IDDepFieldsMap.find(Field->getNameAsString()) == IDDepFieldsMap.end()) {
+        IDDepFieldsMap[Field->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
+      }
+      IDDepFieldsMap[Field->getNameAsString()].push_back(std::make_pair(Field->getBeginLoc(), StringStream.str()));
     }
   } else if (Statement) {
 	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent variable or field", DiagnosticIDs::Note);
@@ -288,8 +313,11 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
       if(std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) == IDDepVars.end() && std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) != IDDepVars.end()) {
         IDDepVars.push_back(PotentialVar);
-        diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent variable %0", DiagnosticIDs::Note)
-	  << RefVar;
+        std::ostringstream StringStream;
+        StringStream << "inferred assignment of ID-dependent value from ID-dependent variable %0" << RefVar;
+        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(RefVar->getBeginLoc(), StringStream.str()));
+        // diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent variable %0", DiagnosticIDs::Note)
+	  // << RefVar;
       }
     }
     if (MemExpr) {
@@ -338,7 +366,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
     } else {
       //It has some DeclRefExpr(s), check for ID-dependency
       // const auto * retDeclExpr = hasIDDepDeclRef(CondExpr);
-      const auto * retMemberExpr = hasIDDepMember(CondExpr);
+      //const auto * retMemberExpr = hasIDDepMember(CondExpr);
       // if (retDeclExpr) {
         //It has an ID-dependent reference
         // diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to variable reference to %1 and may cause performance degradation")
@@ -346,21 +374,38 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
 	    // 	<< loop_type
 	    //	<< retDeclExpr->getDecl();
       // }
+      // VariableUsage is a Vector of SourceLoc, string pairs
       std::pair<std::string, VariableUsage> IDDepVar = hasIDDepVar(CondExpr);
+      std::pair<std::string, VariableUsage> IDDepField = hasIDDepField(CondExpr);
       // diag(CondExpr->getBeginLoc(), "Expression has this IDDepVar: %0") << IDDepVar.first;
       if (!IDDepVar.first.empty()) {
+        // std::string message;
+        for (std::pair<SourceLocation, std::string> Traceback : IDDepVar.second) {
+          diag(Traceback.first, Traceback.second);
+        }
+        /*
+        if (IDDepVar.second.size() < 2) {
+            message = "Too few things in here, yo!";
+        } else {
+            message = "SomePlaceholderText";
+        }*/
         //It has an ID-dependent reference
-        diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to variable reference to %1 and may cause performance degradation\n%2")
+        diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to variable reference to %1 and may cause performance degradation")
         // << MatchedBarrier->getBeginLoc().printToString(Result.Context->getSourceManager());
 		<< loop_type
-        << IDDepVar.first
+        << IDDepVar.first;
 		// << retDeclExpr->getDecl()
-        << "SomePlaceholderText";  // IDDepVar.second;
-      } else if (retMemberExpr) {
-        //It has an ID-dependent reference
+        // << message;  // IDDepVar.second;
+     // } else if (retMemberExpr) {
+      } else if (!IDDepField.first.empty()) {
+        for (std::pair<SourceLocation, std::string> Traceback : IDDepField.second) {
+          diag(Traceback.first, Traceback.second);
+        }
+     //It has an ID-dependent reference
         diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to member reference to %1 and may cause performance degradation")
 		<< loop_type
-		<< retMemberExpr->getMemberDecl();
+        << IDDepField.first;
+		// << retMemberExpr->getMemberDecl();
       } else {
         //Do nothing, there's nothing wrong with a non-ID-dependent conditional expression
       }
