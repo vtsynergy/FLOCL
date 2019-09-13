@@ -1,4 +1,4 @@
-//===-- ClangMoveTest.cpp - clang-move unit tests -------------------------===//
+//===-- ClangMoveTests.cpp - clang-move unit tests ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangMove.h"
+#include "Move.h"
 #include "unittests/Tooling/RewriterTestContext.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/FrontendActions.h"
@@ -227,7 +227,7 @@ runClangMoveOnCode(const move::MoveDefinitionSpec &Spec,
   ClangMoveContext MoveContext = {Spec, FileToReplacements, WorkingDir, "LLVM",
                                   Reporter != nullptr};
 
-  auto Factory = llvm::make_unique<clang::move::ClangMoveActionFactory>(
+  auto Factory = std::make_unique<clang::move::ClangMoveActionFactory>(
       &MoveContext, Reporter);
 
  // std::string IncludeArg = Twine("-I" + WorkingDir;

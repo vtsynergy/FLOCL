@@ -10,13 +10,16 @@ add_extra_unittest(ClangTidyTests
   ClangTidyDiagnosticConsumerTest.cpp
   ClangTidyOptionsTest.cpp
   IncludeInserterTest.cpp
+  GlobListTest.cpp
   GoogleModuleTest.cpp
   LLVMModuleTest.cpp
   NamespaceAliaserTest.cpp
   ObjCModuleTest.cpp
   OverlappingReplacementsTest.cpp
   UsingInserterTest.cpp
-  ReadabilityModuleTest.cpp)
+  ReadabilityModuleTest.cpp
+  TransformerClangTidyCheckTest.cpp
+  )
 
 target_link_libraries(ClangTidyTests
   PRIVATE
@@ -35,4 +38,5 @@ target_link_libraries(ClangTidyTests
   clangTidyUtils
   clangTooling
   clangToolingCore
+  clangToolingRefactoring
   )

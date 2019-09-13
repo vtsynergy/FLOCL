@@ -9,14 +9,14 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_NON_CONST_REFERENCES_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_NON_CONST_REFERENCES_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace google {
 namespace runtime {
 
-/// \brief Checks the usage of non-constant references in function parameters.
+/// Checks the usage of non-constant references in function parameters.
 ///
 /// https://google.github.io/styleguide/cppguide.html#Reference_Arguments
 class NonConstReferences : public ClangTidyCheck {

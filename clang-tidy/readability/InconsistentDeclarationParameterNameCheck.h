@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_INCONSISTENT_DECLARATION_PARAMETER_NAME_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_INCONSISTENT_DECLARATION_PARAMETER_NAME_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 #include "llvm/ADT/DenseSet.h"
 
@@ -17,7 +17,7 @@ namespace clang {
 namespace tidy {
 namespace readability {
 
-/// \brief Checks for declarations of functions which differ in parameter names.
+/// Checks for declarations of functions which differ in parameter names.
 ///
 /// For detailed documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability-inconsistent-declaration-parameter-name.html

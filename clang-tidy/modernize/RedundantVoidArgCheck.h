@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_REDUNDANT_VOID_ARG_CHECK_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_REDUNDANT_VOID_ARG_CHECK_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 #include "clang/Lex/Token.h"
 
 #include <string>
@@ -18,7 +18,7 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Find and remove redundant void argument lists.
+/// Find and remove redundant void argument lists.
 ///
 /// Examples:
 ///   `int f(void);`                    becomes `int f();`

@@ -1,4 +1,4 @@
-//===-- UsedHelperDeclFinder.cpp - AST-based call graph for helper decls --===//
+//===-- HelperDeclRefGraph.cpp - AST-based call graph for helper decls ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "HelperDeclRefGraph.h"
-#include "ClangMove.h"
+#include "Move.h"
 #include "clang/AST/Decl.h"
 #include "llvm/Support/Debug.h"
 #include <vector>
@@ -59,7 +59,7 @@ CallGraphNode *HelperDeclRefGraph::getOrInsertNode(Decl *F) {
   if (Node)
     return Node.get();
 
-  Node = llvm::make_unique<CallGraphNode>(F);
+  Node = std::make_unique<CallGraphNode>(F);
   return Node.get();
 }
 
