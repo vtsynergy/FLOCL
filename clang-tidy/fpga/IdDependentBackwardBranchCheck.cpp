@@ -21,7 +21,7 @@ namespace FPGA {
 
 
 void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
-  //Prototype to identify all variables which hold a thread-variant ID
+  // Prototype to identify all variables which hold a thread-variant ID
   // First Matcher just finds all the direct assignments of either ID call
   const auto TID_RHS =
     expr(
@@ -169,54 +169,6 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
     )).bind("backward_branch"), this);
 }
 
-const DeclRefExpr * IdDependentBackwardBranchCheck::hasIDDepDeclRef(const Expr * e) {
-  if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(e)) {
-    //It is a DeclRefExpr, so check if it's an ID-dependent variable
-    if(std::find(IDDepVars.begin(), IDDepVars.end(), dyn_cast<VarDecl>(expr->getDecl())) != IDDepVars.end()) {
-      return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    //if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepDeclRef(newExpr);
-        if (retExpr) return retExpr;
-      }
-    }
-    //If none of the children force an early return with a match, return NULL
-    return NULL;
-  }
-  return NULL; //Should be unreachable
-}
-
-const MemberExpr * IdDependentBackwardBranchCheck::hasIDDepMember(const Expr * e) {
-  if (const MemberExpr * expr = dyn_cast<MemberExpr>(e)) {
-    //It is a DeclRefExpr, so check if it's an ID-dependent variable
-    if(std::find(IDDepFields.begin(), IDDepFields.end(), dyn_cast<FieldDecl>(expr->getMemberDecl())) != IDDepFields.end()) {
-      return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    //if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepMember(newExpr);
-        if (retExpr) return retExpr;
-      }
-    }
-    //If none of the children force an early return with a match, return NULL
-    return NULL;
-  }
-  return NULL; //Should be unreachable
-}
-
 std::pair<std::string, VariableUsage> 
 IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
   if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(Expression)) {
@@ -224,10 +176,8 @@ IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
     std::string CheckVariable = dyn_cast<VarDecl>(expr->getDecl())->getNameAsString();
     auto FoundVariable = IDDepVarsMap.find(CheckVariable);
     if (FoundVariable == IDDepVarsMap.end()) {
-      // diag(expr->getBeginLoc(), "Did not find variable %0 in IDDepVarsMap") << CheckVariable;
       return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
     }
-    // diag(expr->getBeginLoc(), "Found variable %0 in IDDepVarsMap") << CheckVariable;
     return std::make_pair(FoundVariable->first, FoundVariable->second);
   }
   for (auto i = Expression->child_begin(), e = Expression->child_end(); i != e; ++i) {
@@ -238,14 +188,13 @@ IdDependentBackwardBranchCheck::hasIDDepVar(const Expr * Expression) {
       }
     }
   } 
-  // diag(Expression->getBeginLoc(), "Is not a DeclRefExpr");
   return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
 }
 
 std::pair<std::string, VariableUsage>
 IdDependentBackwardBranchCheck::hasIDDepField(const Expr * Expression) {
-  if (const MemberExpr * Expr = dyn_cast<MemberExpr>(Expression)) {
-    std::string CheckField = dyn_cast<FieldDecl>(Expr->getMemberDecl())->getNameAsString();
+  if (const MemberExpr * MemberExpression = dyn_cast<MemberExpr>(Expression)) {
+    std::string CheckField = dyn_cast<FieldDecl>(MemberExpression->getMemberDecl())->getNameAsString();
     auto FoundField = IDDepFieldsMap.find(CheckField);
     if (FoundField == IDDepFieldsMap.end()) {
       return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
@@ -263,6 +212,28 @@ IdDependentBackwardBranchCheck::hasIDDepField(const Expr * Expression) {
   return std::make_pair("",std::vector<std::pair<SourceLocation, std::string>>());
 }
 
+void IdDependentBackwardBranchCheck::addIDDepVar(const Stmt* Statement, const VarDecl* Variable) {
+  //Record that this variable is thread-dependent
+  std::ostringstream StringStream;
+  StringStream << "assignment of ID-dependent variable " << Variable->getNameAsString(); //  << " declared at "
+  auto FoundVariable = IDDepVarsMap.find(Variable->getNameAsString());
+  if (FoundVariable == IDDepVarsMap.end()) {  // Put empty list if there isn't one already
+    IDDepVarsMap[Variable->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
+  }
+  IDDepVarsMap[Variable->getNameAsString()].push_back(std::make_pair(Variable->getBeginLoc(), StringStream.str()));
+}
+
+void IdDependentBackwardBranchCheck::addIDDepField(const Stmt* Statement, const FieldDecl* Field) {
+  std::ostringstream StringStream;
+  StringStream << "assignment of ID-dependent field " << Field->getNameAsString(); //  << " declared at "
+  auto FoundField = IDDepFieldsMap.find(Field->getNameAsString());
+  if (FoundField == IDDepFieldsMap.end()) {  // Put empty list if there isn't one already
+    // diag(Statement->getBeginLoc(), "Identified IDDep field %0 for the first time") << Field;
+    IDDepFieldsMap[Field->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
+  }
+  IDDepFieldsMap[Field->getNameAsString()].push_back(std::make_pair(Statement->getBeginLoc(), StringStream.str()));
+}
+
 void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Result) {
   // The first half of the callback only deals with identifying and propagating
   // ID-dependency information into the IDDepVars vector
@@ -273,65 +244,47 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
   const auto *MemExpr = Result.Nodes.getNodeAs<MemberExpr>("assign_ref_field");
   const auto *PotentialVar = Result.Nodes.getNodeAs<VarDecl>("pot_tid_var");
   const auto *PotentialField = Result.Nodes.getNodeAs<FieldDecl>("pot_tid_field");
+ 
+  // Add variables and fields assigned directly through ID function calls 
   if (Statement && (Variable || Field)) {
-  //Record that this variable is thread-dependent
     if (Variable) {
-      if(std::find(IDDepVars.begin(), IDDepVars.end(), Variable) == IDDepVars.end()) {
-        IDDepVars.push_back(Variable);
-      }
-      std::ostringstream StringStream;
-      StringStream << "assignment of ID-dependent variable " << Variable->getNameAsString(); //  << " declared at "
-      //     << Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
-      // diag(Variable->getLocation(), "%0 | %1") << Variable->getNameAsString() << StringStream.str();
-      auto FoundVariable = IDDepVarsMap.find(Variable->getNameAsString());
-      if (FoundVariable == IDDepVarsMap.end()) {  // Put empty list if there isn't one already
-        // diag(Statement->getBeginLoc(), "Identified IDDep variable %0 for the first time") << Variable;
-        IDDepVarsMap[Variable->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
-      }
-      // Add location and string to variable's "error" list
-      // diag(Statement->getBeginLoc(), "added location of variable %0 to IDDepVector") << Variable;
-      IDDepVarsMap[Variable->getNameAsString()].push_back(std::make_pair(Variable->getBeginLoc(), StringStream.str()));
-      //diag(Statement->getBeginLoc(), "assignment of ID-dependent variable %0 declared at %1", DiagnosticIDs::Note)
-	  //<< Variable
-	  //<< Variable->getBeginLoc().printToString(Result.Context->getSourceManager());
+        addIDDepVar(Statement, Variable);
     } else if (Field) {
-      if(std::find(IDDepFields.begin(), IDDepFields.end(), Field) == IDDepFields.end()) {
-	    IDDepFields.push_back(Field);
-      }
-      std::ostringstream StringStream;
-      StringStream << "assignment of ID-dependent field " << Field->getNameAsString();
-      if (IDDepFieldsMap.find(Field->getNameAsString()) == IDDepFieldsMap.end()) {
-        IDDepFieldsMap[Field->getNameAsString()] = std::vector<std::pair<SourceLocation, std::string>>();
-      }
-      IDDepFieldsMap[Field->getNameAsString()].push_back(std::make_pair(Field->getBeginLoc(), StringStream.str()));
+        addIDDepField(Statement, Field);
     }
-  } else if (Statement) {
-	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent variable or field", DiagnosticIDs::Note);
   }
+
+  // Add variables assigned to values of Id-dependent variables and fields
   if ((RefExpr || MemExpr) && PotentialVar) {
+   auto FoundPotentialVar = IDDepVarsMap.find(PotentialVar->getNameAsString());
    if (RefExpr) {
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
-      if(std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) == IDDepVars.end() && std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) != IDDepVars.end()) {
-        IDDepVars.push_back(PotentialVar);
+      auto FoundRefVar = IDDepVarsMap.find(RefVar->getNameAsString());
+      // If variable isn't ID-dependent, but refVar is
+      if (FoundPotentialVar == IDDepVarsMap.end() && FoundRefVar != IDDepVarsMap.end()) {
         std::ostringstream StringStream;
-        StringStream << "inferred assignment of ID-dependent value from ID-dependent variable %0" << RefVar;
-        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(RefVar->getBeginLoc(), StringStream.str()));
-        // diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent variable %0", DiagnosticIDs::Note)
-	  // << RefVar;
+        StringStream << "inferred assignment of ID-dependent value from ID-dependent variable"; 
+        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(RefExpr->getLocation(), StringStream.str()));
       }
     }
     if (MemExpr) {
       const auto RefField = dyn_cast<FieldDecl>(MemExpr->getMemberDecl());
-      if(std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) == IDDepVars.end() && std::find(IDDepFields.begin(), IDDepFields.end(), RefField) != IDDepFields.end()) {
-        IDDepVars.push_back(PotentialVar);
-        diag(MemExpr->getBeginLoc(), "Inferred assignment of ID-dependent value from ID-dependent member %0", DiagnosticIDs::Note)
-	  << RefField;
+      auto FoundRefField = IDDepFieldsMap.find(RefField->getNameAsString());
+      // If variable isn't ID-dependent, but refField is
+      if (FoundPotentialVar == IDDepVarsMap.end() && FoundRefField != IDDepFieldsMap.end()) {
+        std::ostringstream StringStream;
+        StringStream << "inferred assignment of ID-dependent value from ID-dependent member";
+        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(MemExpr->getExprLoc(), StringStream.str()));
       }
     }
   }
+  
+  // Add fields assigned to values of ID-dependent variables and fields
   if ((RefExpr || MemExpr) && PotentialField) {
+    auto FoundPotentialField = IDDepFieldsMap.find(PotentialField->getNameAsString());
     if (RefExpr) {
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
+      auto FoundRefVar = IDDepVarsMap.find(RefVar->getNameAsString());
       if(std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) == IDDepFields.end() && std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) != IDDepVars.end()) {
         IDDepFields.push_back(PotentialField);
         diag(RefExpr->getBeginLoc(), "Inferred assignment of ID-dependent member from ID-dependent variable %0", DiagnosticIDs::Note)
@@ -364,50 +317,26 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       diag(IDCall->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to ID function call and may cause performance degradation")
 	<< loop_type;
     } else {
-      //It has some DeclRefExpr(s), check for ID-dependency
-      // const auto * retDeclExpr = hasIDDepDeclRef(CondExpr);
-      //const auto * retMemberExpr = hasIDDepMember(CondExpr);
-      // if (retDeclExpr) {
-        //It has an ID-dependent reference
-        // diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to variable reference to %1 and may cause performance degradation")
-           // << MatchedBarrier->getBeginLoc().printToString(Result.Context->getSourceManager());
-	    // 	<< loop_type
-	    //	<< retDeclExpr->getDecl();
-      // }
+      // It has some DeclRefExpr(s), check for ID-dependency
       // VariableUsage is a Vector of SourceLoc, string pairs
       std::pair<std::string, VariableUsage> IDDepVar = hasIDDepVar(CondExpr);
       std::pair<std::string, VariableUsage> IDDepField = hasIDDepField(CondExpr);
-      // diag(CondExpr->getBeginLoc(), "Expression has this IDDepVar: %0") << IDDepVar.first;
       if (!IDDepVar.first.empty()) {
-        // std::string message;
         for (std::pair<SourceLocation, std::string> Traceback : IDDepVar.second) {
           diag(Traceback.first, Traceback.second);
         }
-        /*
-        if (IDDepVar.second.size() < 2) {
-            message = "Too few things in here, yo!";
-        } else {
-            message = "SomePlaceholderText";
-        }*/
-        //It has an ID-dependent reference
+        // It has an ID-dependent reference
         diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to variable reference to %1 and may cause performance degradation")
-        // << MatchedBarrier->getBeginLoc().printToString(Result.Context->getSourceManager());
 		<< loop_type
         << IDDepVar.first;
-		// << retDeclExpr->getDecl()
-        // << message;  // IDDepVar.second;
-     // } else if (retMemberExpr) {
       } else if (!IDDepField.first.empty()) {
         for (std::pair<SourceLocation, std::string> Traceback : IDDepField.second) {
           diag(Traceback.first, Traceback.second);
         }
-     //It has an ID-dependent reference
+        // It has an ID-dependent reference
         diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to member reference to %1 and may cause performance degradation")
 		<< loop_type
         << IDDepField.first;
-		// << retMemberExpr->getMemberDecl();
-      } else {
-        //Do nothing, there's nothing wrong with a non-ID-dependent conditional expression
       }
     }
   }

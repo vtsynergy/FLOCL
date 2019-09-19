@@ -18,7 +18,9 @@ namespace FPGA {
 
 using VariableUsage = std::vector<std::pair<SourceLocation, std::string>>;
 
-/// FIXME: Write a short description.
+/// Finds ID-dependent variables and fields used within loops, and warns of
+/// their usage. Using these variables in loops can lead to performance
+/// degradation. 
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-ID-dependent-backward-branch.html
@@ -35,6 +37,8 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   const DeclRefExpr * hasIDDepDeclRef(const Expr * e);
   const MemberExpr * hasIDDepMember(const Expr * e);
+  void addIDDepVar(const Stmt* Statement, const VarDecl* Variable);
+  void addIDDepField(const Stmt* Statement, const FieldDecl* Field);
   std::pair<std::string, VariableUsage> hasIDDepVar(const Expr * Expression);
   std::pair<std::string, VariableUsage> hasIDDepField(const Expr * Expression);
 };

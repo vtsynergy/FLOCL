@@ -6,25 +6,23 @@ typedef struct ExampleStruct {
 
 void error() {
   // ==== Assignments ====
-  int tid = get_local_id(0);
-// CHECK-NOTES: :[[@LINE-1]]:3: note: assignment of ID-dependent variable 'tid' declared at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 [fpga-id-dependent-backward-branch]
+  int ThreadID = get_local_id(0); 
+// CHECK-NOTES: :[[@LINE-1]]:3: warning: assignment of ID-dependent variable 'ThreadID' [fpga-id-dependent-backward-branch]
 
   ExampleStruct Example;
   Example.IDDepField = get_local_id(0);
-  // Will not produce warning, but probably should
+// CHECK-NOTES: :[[@LINE-1]]:3: warning: assignment of ID-dependent field 'IDDepField' [fpga-id-dependent-backward-branch]
 
   // ==== Inferred Assignments ====
-  int tx = tid * get_local_size(0);
-// CHECK-NOTES: :[[@LINE-1]]:12: note: Inferred assignment of ID-dependent value from ID-dependent variable 'tid' [fpga-id-dependent-backward-branch]
-  int tx2 = Example.IDDepField;
-// CHECK-NOTES: :[[@LINE-1]]:13: note: Inferred assignment of ID-dependent value from ID-dependent member 'IDDepField' [fpga-id-dependent-backward-branch]
+  int ThreadID2 = ThreadID * get_local_size(0);
+// CHECK-NOTES: :[[@LINE-1]]:12: warning: Inferred assignment of ID-dependent value from ID-dependent variable 'ThreadID' [fpga-id-dependent-backward-branch]
+  
+  int ThreadID3 = Example.IDDepField;  // OK: not used in any loops
 
   ExampleStruct Example2 = {
-    tid * 2
+    ThreadID * 2
   };
 
-  // ExampleClass Example3(tid);
-  // Example2.IDDepField = Example.IDDepField * 2;
   // ==== Conditional Expressions ====
   int accumulator = 0;
   for (int i = 0; i < get_local_id(0); i++) {
@@ -43,20 +41,20 @@ void error() {
   } while (j < get_local_id(0));
   // CHECK-NOTES: :[[@LINE-1]]:16: warning: Backward branch (do loop) is ID-dependent due to ID function call and may cause performance degradation [fpga-id-dependent-backward-branch]
   
-  for (int i = 0; i < tid; i++) {
-    // CHECK-NOTES: :[[@LINE-1]]:23: warning: Backward branch (for loop) is ID-dependent due to variable reference to 'tid' and may cause performance degradation [fpga-id-dependent-backward-branch]
+  for (int i = 0; i < ThreadID2; i++) {
+    // CHECK-NOTES: :[[@LINE-1]]:23: warning: Backward branch (for loop) is ID-dependent due to member reference to 'ThreadID2' and may cause performance degradation [fpga-id-dependent-backward-branch]
     accumulator++;
   }
 
-  while (j < tid) {
-    // CHECK-NOTES: :[[@LINE-1]]:14: warning: Backward branch (while loop) is ID-dependent due to variable reference to 'tid' and may cause performance degradation [fpga-id-dependent-backward-branch]
+  while (j < ThreadID) {
+    // CHECK-NOTES: :[[@LINE-1]]:14: warning: Backward branch (while loop) is ID-dependent due to variable reference to 'ThreadID' and may cause performance degradation [fpga-id-dependent-backward-branch]
     accumulator++;
   }
 
   do {
     accumulator++;
-  } while (j < tid);
-  // CHECK-NOTES: :[[@LINE-1]]:16: warning: Backward branch (do loop) is ID-dependent due to variable reference to 'tid' and may cause performance degradation [fpga-id-dependent-backward-branch]
+  } while (j < ThreadID);
+  // CHECK-NOTES: :[[@LINE-1]]:16: warning: Backward branch (do loop) is ID-dependent due to variable reference to 'ThreadID' and may cause performance degradation [fpga-id-dependent-backward-branch]
   
   for (int i = 0; i < Example.IDDepField; i++) {
     // CHECK-NOTES: :[[@LINE-1]]:23: warning: Backward branch (for loop) is ID-dependent due to member reference to 'IDDepField' and may cause performance degradation [fpga-id-dependent-backward-branch]
