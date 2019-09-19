@@ -25,7 +25,8 @@ class KernelNameRestrictionCheck : public ClangTidyCheck {
 public:
   KernelNameRestrictionCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
-  void registerPPCallbacks(CompilerInstance &Compiler) override;
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
 };
 
 } // namespace FPGA
