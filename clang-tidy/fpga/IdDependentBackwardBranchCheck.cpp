@@ -80,13 +80,8 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
     stmt(forEachDescendant(
       varDecl(hasInitializer(
         forEachDescendant(stmt(anyOf(
-	  declRefExpr(
-            to(varDecl())//,
-          //unless(hasAncestor(arraySubscriptExpr()))
-          ).bind("assign_ref_var"),
-	  memberExpr(
-	    member(fieldDecl())
-	  ).bind("assign_ref_field")
+	      declRefExpr(to(varDecl())).bind("assign_ref_var"),
+	      memberExpr(member(fieldDecl())).bind("assign_ref_field")
         )))
       )).bind("pot_tid_var")
     )), this);
@@ -100,7 +95,6 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
           forEachDescendant(stmt(anyOf(
             declRefExpr(
               to(varDecl())//,
-              //unless(hasAncestor(arraySubscriptExpr()))
             ).bind("assign_ref_var"),
 	    memberExpr(
 	      member(fieldDecl())
@@ -118,14 +112,8 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
       ))
     )), this);
 
-  //Second Matcher looks for branch statements inside of loops and bind on the condition expression IF it either calls an ID function or has a variable DeclRefExpr
-  //DeclRefExprs are checked later to confirm whether the variable is ID-dependent
-//  const auto HAS_LOOP_ANSC = 
-//    hasAncestor(stmt(anyOf(
-//      forStmt().bind("loop_ansc"),
-//      doStmt().bind("loop_ansc"),
-//      whileStmt().bind("loop_ansc")
-//    )));
+  // Second Matcher looks for branch statements inside of loops and bind on the condition expression IF it either calls an ID function or has a variable DeclRefExpr
+  // DeclRefExprs are checked later to confirm whether the variable is ID-dependent
   const auto COND_EXPR =
     expr(anyOf(
       hasDescendant(callExpr(
@@ -137,7 +125,6 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
       hasDescendant(stmt(anyOf(
 	declRefExpr(
           to(varDecl())//,
-        //unless(hasAncestor(arraySubscriptExpr()))
         ),
 	memberExpr(
 	  member(fieldDecl())
@@ -146,24 +133,13 @@ void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
     )).bind("cond_expr");
   Finder->addMatcher(
     stmt(anyOf(
-//      ifStmt(allOf(
-//        HAS_LOOP_ANSC,
-//        hasCondition(COND_EXPR)
-//      )),
-//      caseStmt(allOf(
-//        HAS_LOOP_ANSC,
-//        hasCaseConstant(COND_EXPR)
-//      )),
       forStmt(//allOf(
-//        HAS_LOOP_ANSC,
         hasCondition(COND_EXPR)
       ),
       doStmt(//allOf(
-//        HAS_LOOP_ANSC,
         hasCondition(COND_EXPR)
       ),
       whileStmt(//allOf(
-//        HAS_LOOP_ANSC,
         hasCondition(COND_EXPR)
       )//)
     )).bind("backward_branch"), this);
@@ -264,7 +240,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       if (FoundPotentialVar == IDDepVarsMap.end() && FoundRefVar != IDDepVarsMap.end()) {
         std::ostringstream StringStream;
         StringStream << "inferred assignment of ID-dependent value from ID-dependent variable"; 
-        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(RefExpr->getLocation(), StringStream.str()));
+        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(PotentialVar->getBeginLoc(), StringStream.str()));
       }
     }
     if (MemExpr) {
@@ -274,7 +250,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
       if (FoundPotentialVar == IDDepVarsMap.end() && FoundRefField != IDDepFieldsMap.end()) {
         std::ostringstream StringStream;
         StringStream << "inferred assignment of ID-dependent value from ID-dependent member";
-        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(MemExpr->getExprLoc(), StringStream.str()));
+        IDDepVarsMap[PotentialVar->getNameAsString()].push_back(std::make_pair(PotentialVar->getBeginLoc(), StringStream.str()));
       }
     }
   }
@@ -314,7 +290,7 @@ void IdDependentBackwardBranchCheck::check(const MatchFinder::MatchResult &Resul
   if (CondExpr) {
     if (IDCall) {
       //It calls one of the ID functions directly
-      diag(IDCall->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to ID function call and may cause performance degradation")
+      diag(CondExpr->getBeginLoc(), "Backward branch (%select{do|while|for}0 loop) is ID-dependent due to ID function call and may cause performance degradation")
 	<< loop_type;
     } else {
       // It has some DeclRefExpr(s), check for ID-dependency
