@@ -26,10 +26,10 @@ using VariableUsage = std::vector<std::pair<SourceLocation, std::string>>;
 /// http://clang.llvm.org/extra/clang-tidy/checks/FPGA-ID-dependent-backward-branch.html
 class IdDependentBackwardBranchCheck : public ClangTidyCheck {
 private:
-  std::vector<const VarDecl *> IDDepVars;
-  std::vector<const FieldDecl *> IDDepFields;
-  std::map<std::string, VariableUsage> IDDepVarsMap;
-  std::map<std::string, VariableUsage> IDDepFieldsMap;
+  // std::vector<const VarDecl *> IDDepVars;
+  // std::vector<const FieldDecl *> IDDepFields;
+  std::map<const VarDecl *, VariableUsage> IDDepVarsMap;
+  std::map<const FieldDecl *, VariableUsage> IDDepFieldsMap;
 public:
   IdDependentBackwardBranchCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
@@ -39,8 +39,15 @@ public:
   const MemberExpr * hasIDDepMember(const Expr * e);
   void addIDDepVar(const Stmt* Statement, const VarDecl* Variable);
   void addIDDepField(const Stmt* Statement, const FieldDecl* Field);
-  std::pair<std::string, VariableUsage> hasIDDepVar(const Expr * Expression);
-  std::pair<std::string, VariableUsage> hasIDDepField(const Expr * Expression);
+  std::pair<const VarDecl *, VariableUsage> hasIDDepVar(const Expr * Expression);
+  std::pair<const FieldDecl *, VariableUsage> hasIDDepField(const Expr * Expression);
+  // Stores information necessary for printing out source of error
+  struct DependencyRecord {
+    DependencyRecord(SourceLocation &Location, std::string &Message)
+        : Location(Location), Message(Message) {}
+    SourceLocation Location;
+    std::string Message;
+  };
 };
 
 } // namespace FPGA
