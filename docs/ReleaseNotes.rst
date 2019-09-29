@@ -76,6 +76,11 @@ Improvements to clang-tidy
   Finds instances where variables with static storage are initialized
   dynamically in header files.
 
+- New :doc:`fpga-id-dependent-backward-branch
+  <clang-tidy/checks/fpga-id-dependent-backward-branch>` check.
+
+  Finds ID-dependent variables and fields that are used within loops.
+
 - New :doc:`fpga-kernel-name-restriction
   <clang-tidy/checks/fpga-kernel-name-restriction>` check.
 
