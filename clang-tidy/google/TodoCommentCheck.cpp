@@ -52,11 +52,15 @@ private:
 
 TodoCommentCheck::TodoCommentCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      Handler(llvm::make_unique<TodoCommentHandler>(
+      Handler(std::make_unique<TodoCommentHandler>(
           *this, Context->getOptions().User)) {}
 
-void TodoCommentCheck::registerPPCallbacks(CompilerInstance &Compiler) {
-  Compiler.getPreprocessor().addCommentHandler(Handler.get());
+TodoCommentCheck::~TodoCommentCheck() = default;
+
+void TodoCommentCheck::registerPPCallbacks(const SourceManager &SM,
+                                           Preprocessor *PP,
+                                           Preprocessor *ModuleExpanderPP) {
+  PP->addCommentHandler(Handler.get());
 }
 
 } // namespace readability

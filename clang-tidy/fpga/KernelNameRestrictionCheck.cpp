@@ -21,7 +21,7 @@ namespace {
 class KernelNameRestrictionPPCallbacks : public PPCallbacks {
 public:
   explicit KernelNameRestrictionPPCallbacks(ClangTidyCheck &Check,
-                                            SourceManager &SM)
+                                            const SourceManager &SM)
       : Check(Check), SM(SM) {}
   
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
@@ -41,15 +41,14 @@ private:
   std::vector<IncludeDirective> IncludeDirectives;
 
   ClangTidyCheck &Check;
-  SourceManager &SM; 
+  const SourceManager &SM; 
 };
 } // namespace
 
-void KernelNameRestrictionCheck::registerPPCallbacks(
-    CompilerInstance &Compiler) {
-  Compiler.getPreprocessor().addPPCallbacks(
-      ::llvm::make_unique<KernelNameRestrictionPPCallbacks>(
-          *this, Compiler.getSourceManager()));
+void KernelNameRestrictionCheck::registerPPCallbacks(const SourceManager &SM,
+    Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
+  PP->addPPCallbacks(std::make_unique<KernelNameRestrictionPPCallbacks>(
+                     *this, SM));
 }
 
 void KernelNameRestrictionPPCallbacks::InclusionDirective(

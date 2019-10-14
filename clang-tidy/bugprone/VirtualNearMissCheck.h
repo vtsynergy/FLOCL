@@ -9,14 +9,14 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_VIRTUAL_NEAR_MISS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_VIRTUAL_NEAR_MISS_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 #include "llvm/ADT/DenseMap.h"
 
 namespace clang {
 namespace tidy {
 namespace bugprone {
 
-/// \brief Checks for near miss of virtual methods.
+/// Checks for near miss of virtual methods.
 ///
 /// For a method in a derived class, this check looks for virtual method with a
 /// very similar name and an identical signature defined in a base class.

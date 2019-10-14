@@ -9,15 +9,22 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_TUSCHEDULER_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_TUSCHEDULER_H
 
-#include "ClangdUnit.h"
+#include "Compiler.h"
+#include "Diagnostics.h"
 #include "Function.h"
+#include "GlobalCompilationDatabase.h"
+#include "Path.h"
 #include "Threading.h"
 #include "index/CanonicalIncludes.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
-#include <future>
+#include "llvm/ADT/StringRef.h"
 
 namespace clang {
 namespace clangd {
+class ParsedAST;
+struct PreambleData;
 
 /// Returns a number of a default async threads to use for TUScheduler.
 /// Returned value is always >= 1 (i.e. will not cause requests to be processed
@@ -32,6 +39,7 @@ struct InputsAndAST {
 struct InputsAndPreamble {
   llvm::StringRef Contents;
   const tooling::CompileCommand &Command;
+  // This can be nullptr if no preamble is availble.
   const PreambleData *Preamble;
 };
 
@@ -94,6 +102,10 @@ public:
   virtual void onPreambleAST(PathRef Path, ASTContext &Ctx,
                              std::shared_ptr<clang::Preprocessor> PP,
                              const CanonicalIncludes &) {}
+
+  /// The argument function is run under the critical section guarding against
+  /// races when closing the files.
+  using PublishFn = llvm::function_ref<void(llvm::function_ref<void()>)>;
   /// Called on the AST built for the file itself. Note that preamble AST nodes
   /// are not deserialized and should be processed in the onPreambleAST call
   /// instead.
@@ -104,10 +116,22 @@ public:
   /// etc. Clients are expected to process only the AST nodes from the main file
   /// in this callback (obtained via ParsedAST::getLocalTopLevelDecls) to obtain
   /// optimal performance.
-  virtual void onMainAST(PathRef Path, ParsedAST &AST) {}
+  ///
+  /// When information about the file (diagnostics, syntax highlighting) is
+  /// published to clients, this should be wrapped in Publish, e.g.
+  ///   void onMainAST(...) {
+  ///     Highlights = computeHighlights();
+  ///     Publish([&] { notifyHighlights(Path, Highlights); });
+  ///   }
+  /// This guarantees that clients will see results in the correct sequence if
+  /// the file is concurrently closed and/or reopened. (The lambda passed to
+  /// Publish() may never run in this case).
+  virtual void onMainAST(PathRef Path, ParsedAST &AST, PublishFn Publish) {}
 
-  /// Called whenever the diagnostics for \p File are produced.
-  virtual void onDiagnostics(PathRef File, std::vector<Diag> Diags) {}
+  /// Called whenever the AST fails to build. \p Diags will have the diagnostics
+  /// that led to failure.
+  virtual void onFailedAST(PathRef Path, std::vector<Diag> Diags,
+                           PublishFn Publish) {}
 
   /// Called whenever the TU status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
@@ -122,7 +146,8 @@ public:
 /// FIXME(sammccall): pull out a scheduler options struct.
 class TUScheduler {
 public:
-  TUScheduler(unsigned AsyncThreadsCount, bool StorePreamblesInMemory,
+  TUScheduler(const GlobalCompilationDatabase &CDB, unsigned AsyncThreadsCount,
+              bool StorePreamblesInMemory,
               std::unique_ptr<ParsingCallbacks> ASTCallbacks,
               std::chrono::steady_clock::duration UpdateDebounce,
               ASTRetentionPolicy RetentionPolicy);
@@ -137,17 +162,23 @@ public:
   /// contain files that currently run something over their AST.
   std::vector<Path> getFilesWithCachedAST() const;
 
-  /// Schedule an update for \p File. Adds \p File to a list of tracked files if
-  /// \p File was not part of it before.
-  /// If diagnostics are requested (Yes), and the context is cancelled before
-  /// they are prepared, they may be skipped if eventual-consistency permits it
-  /// (i.e. WantDiagnostics is downgraded to Auto).
-  void update(PathRef File, ParseInputs Inputs, WantDiagnostics WD);
+  /// Schedule an update for \p File.
+  /// The compile command in \p Inputs is ignored; worker queries CDB to get
+  /// the actual compile command.
+  /// If diagnostics are requested (Yes), and the context is cancelled
+  /// before they are prepared, they may be skipped if eventual-consistency
+  /// permits it (i.e. WantDiagnostics is downgraded to Auto).
+  /// Returns true if the file was not previously tracked.
+  bool update(PathRef File, ParseInputs Inputs, WantDiagnostics WD);
 
   /// Remove \p File from the list of tracked files and schedule removal of its
   /// resources. Pending diagnostics for closed files may not be delivered, even
   /// if requested with WantDiags::Auto or WantDiags::Yes.
   void remove(PathRef File);
+
+  /// Returns the current contents of the buffer for File, per last update().
+  /// The returned StringRef may be invalidated by any write to TUScheduler.
+  llvm::StringRef getContents(PathRef File) const;
 
   /// Schedule an async task with no dependencies.
   void run(llvm::StringRef Name, llvm::unique_function<void()> Action);
@@ -178,10 +209,14 @@ public:
     ///   reading source code from headers.
     /// This is the fastest option, usually a preamble is available immediately.
     Stale,
+    /// Besides accepting stale preamble, this also allow preamble to be absent
+    /// (not ready or failed to build).
+    StaleOrAbsent,
   };
+
   /// Schedule an async read of the preamble.
-  /// If there's no preamble yet (because the file was just opened), we'll wait
-  /// for it to build. The result may be null if it fails to build or is empty.
+  /// If there's no up-to-date preamble, we follow the PreambleConsistency
+  /// policy.
   /// If an error occurs, it is forwarded to the \p Action callback.
   /// Context cancellation is ignored and should be handled by the Action.
   /// (In practice, the Action is almost always executed immediately).
@@ -210,8 +245,8 @@ public:
   static llvm::Optional<llvm::StringRef> getFileBeingProcessedInContext();
 
 private:
+  const GlobalCompilationDatabase &CDB;
   const bool StorePreamblesInMemory;
-  const std::shared_ptr<PCHContainerOperations> PCHOps;
   std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
   Semaphore Barrier;
   llvm::StringMap<std::unique_ptr<FileData>> Files;
@@ -222,19 +257,6 @@ private:
   llvm::Optional<AsyncTaskRunner> WorkerThreads;
   std::chrono::steady_clock::duration UpdateDebounce;
 };
-
-/// Runs \p Action asynchronously with a new std::thread. The context will be
-/// propagated.
-template <typename T>
-std::future<T> runAsync(llvm::unique_function<T()> Action) {
-  return std::async(
-      std::launch::async,
-      [](llvm::unique_function<T()> &&Action, Context Ctx) {
-        WithContext WithCtx(std::move(Ctx));
-        return Action();
-      },
-      std::move(Action), Context::current().clone());
-}
 
 } // namespace clangd
 } // namespace clang

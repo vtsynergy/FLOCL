@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_ARGUMENTCOMMENTCHECK_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_ARGUMENTCOMMENTCHECK_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 #include "llvm/Support/Regex.h"
 
 namespace clang {
@@ -41,6 +41,7 @@ public:
 
 private:
   const unsigned StrictMode : 1;
+  const unsigned IgnoreSingleArgument : 1;
   const unsigned CommentBoolLiterals : 1;
   const unsigned CommentIntegerLiterals : 1;
   const unsigned CommentFloatLiterals : 1;

@@ -9,13 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_STATIC_ACCESSED_THROUGH_INSTANCE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_STATIC_ACCESSED_THROUGH_INSTANCE_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace readability {
 
-/// \@brief Checks for member expressions that access static members through
+/// Checks for member expressions that access static members through
 /// instances and replaces them with uses of the appropriate qualified-id.
 ///
 /// For the user-facing documentation see:

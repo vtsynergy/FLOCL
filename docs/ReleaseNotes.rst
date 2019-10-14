@@ -1,6 +1,6 @@
-===================================================
-Extra Clang Tools 9.0.0 (In-Progress) Release Notes
-===================================================
+====================================================
+Extra Clang Tools 10.0.0 (In-Progress) Release Notes
+====================================================
 
 .. contents::
    :local:
@@ -10,7 +10,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Extra Clang Tools 9 release.
+   These are in-progress notes for the upcoming Extra Clang Tools 10 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Extra Clang Tools, part of the
-Clang release 9.0.0. Here we describe the status of the Extra Clang Tools in
+Clang release 10.0.0. Here we describe the status of the Extra Clang Tools in
 some detail, including major improvements from the previous release and new
 feature work. All LLVM releases may be downloaded from the `LLVM releases web
 site <https://llvm.org/releases/>`_.
@@ -32,8 +32,8 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Extra Clang Tools 9.0.0?
-======================================
+What's New in Extra Clang Tools 10.0.0?
+=======================================
 
 Some of the major new features and improvements to Extra Clang Tools are listed
 here. Generic improvements to Extra Clang Tools as a whole or to its underlying
@@ -52,12 +52,12 @@ The improvements are...
 Improvements to clang-doc
 -------------------------
 
-The improvements are...
+- :doc:`clang-doc <clang-doc>` now generates documentation in HTML format.
 
 Improvements to clang-query
 ---------------------------
 
-- ...
+The improvements are...
 
 Improvements to clang-rename
 ----------------------------
@@ -87,39 +87,76 @@ Improvements to clang-tidy
   Checks for cases where a function call is recursive. This is restricted by 
   OpenCL.
 
-- New :doc:`abseil-duration-addition
-  <clang-tidy/checks/abseil-duration-addition>` check.
+- New :doc:`bugprone-dynamic-static-initializers
+  <clang-tidy/checks/bugprone-dynamic-static-initializers>` check.
 
-  Checks for cases where addition should be performed in the ``absl::Time``
-  domain.
+  Finds instances where variables with static storage are initialized
+  dynamically in header files.
 
-- New :doc:`abseil-duration-conversion-cast
-  <clang-tidy/checks/abseil-duration-conversion-cast>` check.
+- New :doc:`bugprone-infinite-loop
+  <clang-tidy/checks/bugprone-infinite-loop>` check.
 
-  Checks for casts of ``absl::Duration`` conversion functions, and recommends
-  the right conversion function instead.
+  Finds obvious infinite loops (loops where the condition variable is not
+  changed at all).
 
-- New :doc:`abseil-duration-unnecessary-conversion
-  <clang-tidy/checks/abseil-duration-unnecessary-conversion>` check.
+- New :doc:`bugprone-not-null-terminated-result
+  <clang-tidy/checks/bugprone-not-null-terminated-result>` check
 
-  Finds and fixes cases where ``absl::Duration`` values are being converted to
-  numeric types and back again.
+  Finds function calls where it is possible to cause a not null-terminated
+  result. Usually the proper length of a string is ``strlen(str) + 1`` or equal
+  length of this expression, because the null terminator needs an extra space.
+  Without the null terminator it can result in undefined behaviour when the
+  string is read.
 
-- New :doc:`google-readability-avoid-underscore-in-googletest-name
-  <clang-tidy/checks/google-readability-avoid-underscore-in-googletest-name>`
-  check.
+- New :doc:`cppcoreguidelines-init-variables
+  <clang-tidy/checks/cppcoreguidelines-init-variables>` check.
 
-  Checks whether there are underscores in googletest test and test case names in
-  test macros, which is prohibited by the Googletest FAQ.
+- New :doc:`darwin-dispatch-once-nonstatic
+  <clang-tidy/checks/darwin-dispatch-once-nonstatic>` check.
 
-- The :doc:`bugprone-argument-comment
-  <clang-tidy/checks/bugprone-argument-comment>` now supports
-  `CommentBoolLiterals`, `CommentIntegerLiterals`,  `CommentFloatLiterals`,
-  `CommentUserDefiniedLiterals`, `CommentStringLiterals`,
-  `CommentCharacterLiterals` & `CommentNullPtrs` options.
+  Finds declarations of ``dispatch_once_t`` variables without static or global
+  storage.
+
+- New :doc:`google-upgrade-googletest-case
+  <clang-tidy/checks/google-upgrade-googletest-case>` check.
+
+  Finds uses of deprecated Googletest APIs with names containing ``case`` and
+  replaces them with equivalent APIs with ``suite``.
+
+- New :doc:`linuxkernel-must-use-errs
+  <clang-tidy/checks/linuxkernel-must-use-errs>` check.
+
+  Checks Linux kernel code to see if it uses the results from the functions in
+  ``linux/err.h``.
+
+- New :doc:`llvm-prefer-register-over-unsigned
+  <clang-tidy/checks/llvm-prefer-register-over-unsigned>` check.
+
+  Finds historical use of ``unsigned`` to hold vregs and physregs and rewrites
+  them to use ``Register``
+
+- New :doc:`objc-missing-hash
+  <clang-tidy/checks/objc-missing-hash>` check.
+
+  Finds Objective-C implementations that implement ``-isEqual:`` without also
+  appropriately implementing ``-hash``.
+
+- Improved :doc:`bugprone-posix-return
+  <clang-tidy/checks/bugprone-posix-return>` check.
+
+  Now also checks if any calls to ``pthread_*`` functions expect negative return
+  values.
+
+- The 'objc-avoid-spinlock' check was renamed to :doc:`darwin-avoid-spinlock
+  <clang-tidy/checks/darwin-avoid-spinlock>`
 
 Improvements to include-fixer
 -----------------------------
+
+The improvements are...
+
+Improvements to clang-include-fixer
+-----------------------------------
 
 The improvements are...
 
@@ -127,3 +164,16 @@ Improvements to modularize
 --------------------------
 
 The improvements are...
+
+Improvements to pp-trace
+------------------------
+
+The improvements are...
+
+Clang-tidy visual studio plugin
+-------------------------------
+
+The clang-tidy-vs plugin has been removed from clang, as
+it's no longer maintained. Users should migrate to
+`Clang Power Tools <https://marketplace.visualstudio.com/items?itemName=caphyon.ClangPowerTools>`_
+instead.

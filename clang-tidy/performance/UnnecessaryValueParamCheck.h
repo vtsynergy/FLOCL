@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_PERFORMANCE_UNNECESSARY_VALUE_PARAM_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_PERFORMANCE_UNNECESSARY_VALUE_PARAM_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 #include "../utils/IncludeInserter.h"
 #include "clang/Analysis/Analyses/ExprMutationAnalyzer.h"
 
@@ -17,7 +17,7 @@ namespace clang {
 namespace tidy {
 namespace performance {
 
-/// \brief A check that flags value parameters of expensive to copy types that
+/// A check that flags value parameters of expensive to copy types that
 /// can safely be converted to const references.
 ///
 /// For the user-facing documentation see:
@@ -27,7 +27,8 @@ public:
   UnnecessaryValueParamCheck(StringRef Name, ClangTidyContext *Context);
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void registerPPCallbacks(CompilerInstance &Compiler) override;
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void onEndOfTranslationUnit() override;
 

@@ -9,13 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_INCORRECTROUNDINGSCHECK_H_
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_INCORRECTROUNDINGSCHECK_H_
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace bugprone {
 
-/// \brief Checks the usage of patterns known to produce incorrect rounding.
+/// Checks the usage of patterns known to produce incorrect rounding.
 /// Programmers often use
 ///   (int)(double_expression + 0.5)
 /// to round the double expression to an integer. The problem with this

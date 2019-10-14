@@ -35,6 +35,11 @@ extern volatile int BugproneModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED BugproneModuleAnchorDestination =
     BugproneModuleAnchorSource;
 
+// This anchor is used to force the linker to link the LinuxKernelModule.
+extern volatile int LinuxKernelModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED LinuxKernelModuleAnchorDestination =
+    LinuxKernelModuleAnchorSource;
+
 // This anchor is used to force the linker to link the LLVMModule.
 extern volatile int LLVMModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED LLVMModuleAnchorDestination =
@@ -44,6 +49,16 @@ static int LLVM_ATTRIBUTE_UNUSED LLVMModuleAnchorDestination =
 extern volatile int CppCoreGuidelinesModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED CppCoreGuidelinesModuleAnchorDestination =
     CppCoreGuidelinesModuleAnchorSource;
+
+// This anchor is used to force the linker to link the DarwinModule.
+extern volatile int DarwinModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED DarwinModuleAnchorDestination =
+    DarwinModuleAnchorSource;
+
+// This anchor is used to force the linker to link the FPGAModule.
+extern volatile int FPGAModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED FPGAModuleAnchorDestination =
+    FPGAModuleAnchorSource;
 
 // This anchor is used to force the linker to link the FuchsiaModule.
 extern volatile int FuchsiaModuleAnchorSource;
@@ -70,12 +85,23 @@ extern volatile int ModernizeModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ModernizeModuleAnchorDestination =
     ModernizeModuleAnchorSource;
 
-#if CLANG_ENABLE_STATIC_ANALYZER
+#if CLANG_ENABLE_STATIC_ANALYZER &&                                            \
+    !defined(CLANG_TIDY_DISABLE_STATIC_ANALYZER_CHECKS)
 // This anchor is used to force the linker to link the MPIModule.
 extern volatile int MPIModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED MPIModuleAnchorDestination =
     MPIModuleAnchorSource;
 #endif
+
+// This anchor is used to force the linker to link the OpenCLModule.
+extern volatile int OpenCLModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED OpenCLModuleAnchorDestination =
+    OpenCLModuleAnchorSource;
+
+// This anchor is used to force the linker to link the OpenMPModule.
+extern volatile int OpenMPModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED OpenMPModuleAnchorDestination =
+    OpenMPModuleAnchorSource;
 
 // This anchor is used to force the linker to link the PerformanceModule.
 extern volatile int PerformanceModuleAnchorSource;

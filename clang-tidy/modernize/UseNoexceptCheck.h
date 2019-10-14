@@ -9,13 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_NOEXCEPT_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_NOEXCEPT_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Replace dynamic exception specifications, with
+/// Replace dynamic exception specifications, with
 /// `noexcept` (or user-defined macro) or `noexcept(false)`.
 /// \code
 ///   void foo() throw();

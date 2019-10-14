@@ -9,13 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EQUALS_DELETE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EQUALS_DELETE_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Mark unimplemented private special member functions with '= delete'.
+/// Mark unimplemented private special member functions with '= delete'.
 /// \code
 ///   struct A {
 ///   private:
