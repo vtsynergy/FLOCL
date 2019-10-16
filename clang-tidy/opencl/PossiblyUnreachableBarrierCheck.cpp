@@ -253,47 +253,41 @@ const DeclRefExpr * PossiblyUnreachableBarrierCheck::hasIDDepDeclRef(const Expr 
     //It is a DeclRefExpr, so check if it's an ID-dependent variable
     if(std::find(IDDepVars.begin(), IDDepVars.end(), dyn_cast<VarDecl>(expr->getDecl())) != IDDepVars.end()) {
       return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepDeclRef(newExpr);
-        if (retExpr) return retExpr;
-      }
     }
-    //If none of the children force an early return with a match, return NULL
     return NULL;
   }
-  return NULL; //Should be unreachable
+  // If we care about thread-dependent array subscript exprs, turn off the below
+  if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
+  // We need to iterate over its children and see if any of them are
+  for (auto i = e->child_begin(); i != e->child_end(); ++i) {
+    if (auto * newExpr = dyn_cast<Expr>(*i)) {
+      auto * retExpr = hasIDDepDeclRef(newExpr);
+      if (retExpr) return retExpr;
+    }
+  }
+  // If none of the children force an early return with a match, return NULL
+  return NULL;
 }
 
 const MemberExpr * PossiblyUnreachableBarrierCheck::hasIDDepMember(const Expr * e) {
   if (const MemberExpr * expr = dyn_cast<MemberExpr>(e)) {
-    //It is a DeclRefExpr, so check if it's an ID-dependent variable
+    // It is a DeclRefExpr, so check if it's an ID-dependent variable
     if(std::find(IDDepFields.begin(), IDDepFields.end(), dyn_cast<FieldDecl>(expr->getMemberDecl())) != IDDepFields.end()) {
       return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    //if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepMember(newExpr);
-        if (retExpr) return retExpr;
-      }
     }
-    //If none of the children force an early return with a match, return NULL
     return NULL;
   }
-  return NULL; //Should be unreachable
+  // If we care about thread-dependent array subscript exprs, turn off the below
+  // if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
+  // We need to iterate over its children and see if any of them are
+  for (auto i = e->child_begin(); i != e->child_end(); ++i) {
+    if (auto * newExpr = dyn_cast<Expr>(*i)) {
+      auto * retExpr = hasIDDepMember(newExpr);
+      if (retExpr) return retExpr;
+    }
+  }
+  // If none of the children force an early return with a match, return NULL
+  return NULL;
 }
 
 void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Result) {
