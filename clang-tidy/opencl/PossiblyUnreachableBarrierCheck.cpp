@@ -311,30 +311,31 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
   const auto *CondExpr = Result.Nodes.getNodeAs<Expr>("cond_expr");
   const auto *IDCall = Result.Nodes.getNodeAs<CallExpr>("id_call");
 
-  //Figure out which type of conditional we have for the select in the later diagnostics
-  int type = -1;
+  BranchType Branch = UNKNOWN;
   if (ForAnsc) {
-    type = 0;
+    Branch = FOR_LOOP;
   } else if (IfAnsc) {
-    type = 1;
+    Branch = IF_STMT;
   } else if (DoAnsc) {
-    type = 2;
+    Branch = DO_LOOP;
   } else if (WhileAnsc) {
-    type = 3;
+    Branch = WHILE_LOOP;
   } else if (SwitchAnsc) {
-    type = 4;
+    Branch = SWITCH_STMT;
   }
+   
+  //Figure out which type of conditional we have for the select in the later diagnostics
   if (CondExpr) {
     //Before we emit a diagnostic, see if we can quickly conclusively prove it's a false positive
-    switch (type) {
-	case 0:
-	case 2:
-	case 3:
+    switch (Branch) {
+	case FOR_LOOP:  // handle for loop
+	case DO_LOOP:  // handle do loop
+	case WHILE_LOOP:  // handle while loop
 	//TODO: If it's a loop, make sure it's not unconditionally executed a non-ID-dependent number of times (constant offset from TID)
 	break;
 
 	//TODO: Needs to handle breaks, returns, and gotos
-	case 1: {
+	case IF_STMT: {  // handle if statement
 	  //If this is an-else if, we should have already checked the entire if/else-if/else construct based on the starting if, (safely) abort)
 	  const auto parents = Result.Context->getParents(*IfAnsc);
 	  const Stmt * parent = NULL;
@@ -458,7 +459,7 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
 	break;
 
 	//TODO: needs to handle returns and gotos
-	case 4: {
+	case SWITCH_STMT: {  // handle switch statement
 	//TODO: If it's a switch, recursively check that all cases (and a default) have a barrier  
 	  bool hasDefault = false;
 	  //llvm::errs() << "Diagnosing SwitchStmt";
@@ -570,7 +571,7 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
     if (IDCall) {
       //It calls one of the ID functions directly
       diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to ID function call in condition at %1")
-	<< type
+	<< Branch
 	<< CondExpr->getBeginLoc().printToString(ResultSM);
     } else {
       //It has some DeclRefExpr(s), check for ID-dependency
@@ -579,13 +580,13 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
       if (retDeclExpr) {
         //It has an ID-dependent reference
         diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent variable %2 in condition at %1")
-		<< type
+		<< Branch
 		<< CondExpr->getBeginLoc().printToString(ResultSM)
 		<< retDeclExpr->getDecl();
       } else if (retMemberExpr) {
         //It has an ID-dependent reference
         diag(BarrierCall->getBeginLoc(), "Barrier inside %select{for loop|if/else|do loop|while loop|switch}0 may not be reachable due to reference to ID-dependent member %2 in condition at %1")
-		<< type
+		<< Branch
 		<< CondExpr->getBeginLoc().printToString(ResultSM)
 		<< retMemberExpr->getMemberDecl();
       } else {

@@ -22,6 +22,10 @@ namespace OpenCL {
 /// http://clang.llvm.org/extra/clang-tidy/checks/OpenCL-possibly-unreachable-barrier.html
 class PossiblyUnreachableBarrierCheck : public ClangTidyCheck {
 private:
+  // Encodes the type of branch statement
+  enum BranchType { UNKNOWN = -1, FOR_LOOP = 0, IF_STMT = 1, DO_LOOP = 2, WHILE_LOOP = 3, SWITCH_STMT = 4 };
+  // Returns the type of branch statement matched by the AST Matcher
+  // BranchType getBrachType(const Stmt *Loop);
   std::vector<const VarDecl *> IDDepVars;
   std::vector<const FieldDecl *> IDDepFields;
 public:
