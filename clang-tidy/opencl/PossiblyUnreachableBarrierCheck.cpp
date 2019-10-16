@@ -229,9 +229,6 @@ const MemberExpr * PossiblyUnreachableBarrierCheck::hasIDDepMember(const Expr * 
 
 void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Result) {
 	SourceManager &ResultSM = Result.Context->getSourceManager();
-	std::string TypeS;
-	llvm::raw_string_ostream s(TypeS);
-	PrintingPolicy Policy = Result.Context->getPrintingPolicy();
   // The first half of the callback only deals with identifying and propagating
   // ID-dependency information into the IDDepVars vector
   const auto *Variable = Result.Nodes.getNodeAs<VarDecl>("tid_dep_var");
