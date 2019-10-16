@@ -12,7 +12,6 @@
 
 #include "PossiblyUnreachableBarrierCheck.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
@@ -177,58 +176,8 @@ void PossiblyUnreachableBarrierCheck::registerMatchers(MatchFinder *Finder) {
       )).bind("switch")
     )), this);
 }
-
-//A recrusive preorder traversal of an Expr to check if any of the DeclRefExprs that might be in it are marked as ID-dependent variables
-const DeclRefExpr * PossiblyUnreachableBarrierCheck::hasIDDepDeclRef(const Expr * e) {
-  if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(e)) {
-    //It is a DeclRefExpr, so check if it's an ID-dependent variable
-    if(std::find(IDDepVars.begin(), IDDepVars.end(), dyn_cast<VarDecl>(expr->getDecl())) != IDDepVars.end()) {
-      return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepDeclRef(newExpr);
-        if (retExpr) return retExpr;
-      }
-    }
-    //If none of the children force an early return with a match, return NULL
-    return NULL;
-  }
-  return NULL; //Should be unreachable
-}
-
-const MemberExpr * PossiblyUnreachableBarrierCheck::hasIDDepMember(const Expr * e) {
-  if (const MemberExpr * expr = dyn_cast<MemberExpr>(e)) {
-    //It is a DeclRefExpr, so check if it's an ID-dependent variable
-    if(std::find(IDDepFields.begin(), IDDepFields.end(), dyn_cast<FieldDecl>(expr->getMemberDecl())) != IDDepFields.end()) {
-      return expr;
-     } else {
-      return NULL;
-     }
-  } else {
-    //If we care about thread-dependent array subscript exprs, turn off the below
-    //if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
-    //We need to iterate over its children and see if any of them are
-    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
-      if (auto * newExpr = dyn_cast<Expr>(*i)) {
-        auto * retExpr = hasIDDepMember(newExpr);
-        if (retExpr) return retExpr;
-      }
-    }
-    //If none of the children force an early return with a match, return NULL
-    return NULL;
-  }
-  return NULL; //Should be unreachable
-}
-
-void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Result) {
-	SourceManager &ResultSM = Result.Context->getSourceManager();
+  
+void PossiblyUnreachableBarrierCheck::findIDDependentVariablesAndFields(const MatchFinder::MatchResult &Result) {
   // The first half of the callback only deals with identifying and propagating
   // ID-dependency information into the IDDepVars vector
   const auto *Variable = Result.Nodes.getNodeAs<VarDecl>("tid_dep_var");
@@ -296,8 +245,62 @@ void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Resu
       }
     }
   }
+}
 
-  //We want the diagnostic to emit slightly different text so we bind on the
+//A recrusive preorder traversal of an Expr to check if any of the DeclRefExprs that might be in it are marked as ID-dependent variables
+const DeclRefExpr * PossiblyUnreachableBarrierCheck::hasIDDepDeclRef(const Expr * e) {
+  if (const DeclRefExpr * expr = dyn_cast<DeclRefExpr>(e)) {
+    //It is a DeclRefExpr, so check if it's an ID-dependent variable
+    if(std::find(IDDepVars.begin(), IDDepVars.end(), dyn_cast<VarDecl>(expr->getDecl())) != IDDepVars.end()) {
+      return expr;
+     } else {
+      return NULL;
+     }
+  } else {
+    //If we care about thread-dependent array subscript exprs, turn off the below
+    if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
+    //We need to iterate over its children and see if any of them are
+    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
+      if (auto * newExpr = dyn_cast<Expr>(*i)) {
+        auto * retExpr = hasIDDepDeclRef(newExpr);
+        if (retExpr) return retExpr;
+      }
+    }
+    //If none of the children force an early return with a match, return NULL
+    return NULL;
+  }
+  return NULL; //Should be unreachable
+}
+
+const MemberExpr * PossiblyUnreachableBarrierCheck::hasIDDepMember(const Expr * e) {
+  if (const MemberExpr * expr = dyn_cast<MemberExpr>(e)) {
+    //It is a DeclRefExpr, so check if it's an ID-dependent variable
+    if(std::find(IDDepFields.begin(), IDDepFields.end(), dyn_cast<FieldDecl>(expr->getMemberDecl())) != IDDepFields.end()) {
+      return expr;
+     } else {
+      return NULL;
+     }
+  } else {
+    //If we care about thread-dependent array subscript exprs, turn off the below
+    //if (auto * ase = dyn_cast<ArraySubscriptExpr>(e)) return NULL;
+    //We need to iterate over its children and see if any of them are
+    for (auto i = e->child_begin(); i != e->child_end(); ++i) {
+      if (auto * newExpr = dyn_cast<Expr>(*i)) {
+        auto * retExpr = hasIDDepMember(newExpr);
+        if (retExpr) return retExpr;
+      }
+    }
+    //If none of the children force an early return with a match, return NULL
+    return NULL;
+  }
+  return NULL; //Should be unreachable
+}
+
+void PossiblyUnreachableBarrierCheck::check(const MatchFinder::MatchResult &Result) {
+  SourceManager &ResultSM = Result.Context->getSourceManager();
+  findIDDependentVariablesAndFields(Result);
+
+  // We want the diagnostic to emit slightly different text so we bind on the
   // five potential conditionals (of which only one will be true) a barrier and conditional expreesion, and possibly an id call
   const auto *BarrierCall = Result.Nodes.getNodeAs<CallExpr>("barrier");
   const auto *ForAnsc = Result.Nodes.getNodeAs<ForStmt>("for");

@@ -11,6 +11,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_OPENCL_POSSIBLY_UNREACHABLE_BARRIER_H
 
 #include "../ClangTidy.h"
+#include "clang/ASTMatchers/ASTMatchFinder.h"
 
 namespace clang {
 namespace tidy {
@@ -26,6 +27,8 @@ private:
   enum BranchType { UNKNOWN = -1, FOR_LOOP = 0, IF_STMT = 1, DO_LOOP = 2, WHILE_LOOP = 3, SWITCH_STMT = 4 };
   // Returns the type of branch statement matched by the AST Matcher
   // BranchType getBrachType(const Stmt *Loop);
+  // Adds ID-dependent variables and fields to list
+  void findIDDependentVariablesAndFields(const clang::ast_matchers::MatchFinder::MatchResult &Result);
   std::vector<const VarDecl *> IDDepVars;
   std::vector<const FieldDecl *> IDDepFields;
 public:
