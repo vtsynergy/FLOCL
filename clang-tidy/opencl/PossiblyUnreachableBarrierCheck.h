@@ -31,6 +31,7 @@ private:
   void findIDDependentVariablesAndFields(const clang::ast_matchers::MatchFinder::MatchResult &Result);
   std::vector<const VarDecl *> IDDepVars;
   std::vector<const FieldDecl *> IDDepFields;
+  bool isFalsePositiveIfStmt(const clang::ast_matchers::MatchFinder::MatchResult &Result, const IfStmt *IfAnsc);
 public:
   PossiblyUnreachableBarrierCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
