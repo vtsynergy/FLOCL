@@ -142,66 +142,50 @@ void PossiblyUnreachableBarrierCheck::findIDDependentVariablesAndFields(
         IDDepFields.push_back(Field);
       }
     }
-  } else if (Statement) {
-    //	diag(Statement->getBeginLoc(), "assignment of unknown thread-dependent
-    // variable");
-  } else if (Variable) {
-    //	diag(Variable->getBeginLoc(), "variable seems thread dependent, but
-    // can't figure out statement");
-  } else if (Field) {
-    // TODO diag
   }
   // If there is an variable references on the RHS and any variable on the LHS
   if ((RefExpr || MemExpr) && PotentialVar) {
-    // if we got a hit because of a variable in the RHS
+    // If PotentialVar is already in list of ID-dependent variables, return
+    if (std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) !=
+            IDDepVars.end())
+      return;
+    
     if (RefExpr) {
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
-      // If the LHS variable isn't recorded as ID-dependent but the referenced
-      // variable is
-      if (std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) ==
-              IDDepVars.end() &&
-          std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) !=
+      // If RefVar is in IDDepVars, PotentialVar is ID-dependent
+      if (std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) !=
               IDDepVars.end()) {
-        // Record it
         IDDepVars.push_back(PotentialVar);
       }
     }
-    // if we got a hit because of a member in the RHS
     if (MemExpr) {
       const auto RefField = dyn_cast<FieldDecl>(MemExpr->getMemberDecl());
-      // If the LHS variable isn't recorded as ID-dependent but the referenced
-      // field is
-      if (std::find(IDDepVars.begin(), IDDepVars.end(), PotentialVar) ==
-              IDDepVars.end() &&
-          std::find(IDDepFields.begin(), IDDepFields.end(), RefField) !=
+      // If RefField is in IDDepFields, PotentialVar is ID-dependent
+      if (std::find(IDDepFields.begin(), IDDepFields.end(), RefField) !=
               IDDepFields.end()) {
-        // Record it
         IDDepVars.push_back(PotentialVar);
       }
     }
   }
   if ((RefExpr || MemExpr) && PotentialField) {
+    // If PotentialField is already in list of ID-dependent fields, return
+    if (std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) != 
+            IDDepFields.end())
+      return;
+
     if (RefExpr) {
       const auto RefVar = dyn_cast<VarDecl>(RefExpr->getDecl());
-      // If the LHS field isn't recorded as ID-dependent but the referenced
-      // variable is
-      if (std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) ==
-              IDDepFields.end() &&
-          std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) !=
+      // If RefVar is in IDDepVars, PotentialField is ID-dependent
+      if (std::find(IDDepVars.begin(), IDDepVars.end(), RefVar) !=
               IDDepVars.end()) {
-        // Record it
         IDDepFields.push_back(PotentialField);
       }
     }
     if (MemExpr) {
       const auto RefField = dyn_cast<FieldDecl>(MemExpr->getMemberDecl());
-      // If the LHS field isn't recorded as ID-dependent but the referenced
-      // field is
-      if (std::find(IDDepFields.begin(), IDDepFields.end(), PotentialField) ==
-              IDDepFields.end() &&
-          std::find(IDDepFields.begin(), IDDepFields.end(), RefField) !=
+      // If RefField is in IDDepFields, PotentialField is ID-dependent
+      if (std::find(IDDepFields.begin(), IDDepFields.end(), RefField) !=
               IDDepFields.end()) {
-        // Record it
         IDDepFields.push_back(PotentialField);
       }
     }
