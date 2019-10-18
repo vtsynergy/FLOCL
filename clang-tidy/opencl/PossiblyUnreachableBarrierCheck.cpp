@@ -244,22 +244,25 @@ PossiblyUnreachableBarrierCheck::hasIDDepMember(const Expr *e) {
   return NULL;
 }
 
-bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::MatchResult &Result, const IfStmt *IfAnsc) {
-  // If this is an-else if, we should have already checked the entire
-  // if/else-if/else construct based on the starting if, (safely) abort)
-  const auto parents = Result.Context->getParents(*IfAnsc);
-  const Stmt *parent = NULL;
-  if (!parents.empty()) {
-    parent = parents[0].get<Stmt>();
+bool PossiblyUnreachableBarrierCheck::isElseIfStmt(const MatchFinder::MatchResult &Result, const IfStmt *IfStatement) {
+  clang::ASTContext::DynTypedNodeList Parents = Result.Context->getParents(*IfStatement);
+  if (Parents.empty()) {
+    return false;
   }
-  if (parent) {
-    const IfStmt *ifParent = dyn_cast<IfStmt>(parent);
-    if (ifParent != NULL && ifParent->getElse() == IfAnsc) {
-      // llvm::errs() << "Already evaluated else-if from outer branch,
-      // skipping\n";
+  const Stmt* Parent = Parents[0].get<Stmt>();
+  if (Parent) {
+    const IfStmt* IfParent = dyn_cast<IfStmt>(Parent);
+    if (IfParent && IfParent->getElse() == IfStatement) {
       return true;
     }
   }
+  return false;
+}
+
+bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::MatchResult &Result, const IfStmt *IfAnsc) {
+  // If it is an else-if statement, do not evaluate
+  if (isElseIfStmt(Result, IfAnsc))
+    return true;
   // First collapse all else/if branches into a struct to iterate over
   std::list<const Stmt *> checks;
   auto currIf = IfAnsc;
