@@ -1,6 +1,6 @@
-.. title:: clang-tidy - OpenCL-recursion-not-supported
+.. title:: clang-tidy - opencl-recursion-not-supported
 
-OpenCL-recursion-not-supported
+opencl-recursion-not-supported
 ==============================
 
 Finds recursive function calls and flags them as compiler errors, since 

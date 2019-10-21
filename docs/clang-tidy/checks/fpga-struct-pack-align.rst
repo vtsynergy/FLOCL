@@ -1,6 +1,6 @@
-.. title:: clang-tidy - FPGA-struct-pack-align
+.. title:: clang-tidy - fpga-struct-pack-align
 
-FPGA-struct-pack-align
+fpga-struct-pack-align
 ======================
 
 Finds structs that are inefficiently packed or aligned, and recommends
