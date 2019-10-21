@@ -1,28 +1,294 @@
-// RUN: %check_clang_tidy %s fpga-single-work-item-barrier %t -- -header-filter=.* "--" --include opencl-c.h -cl-std=CL1.2 -c 
+// RUN: %check_clang_tidy -check-suffix=OLD %s fpga-single-work-item-barrier %t -- -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h -DOLD
+// RUN: %check_clang_tidy -check-suffix=NEW %s fpga-single-work-item-barrier %t -- -header-filter=.* "--" -cl-std=CL2.0 -c --include opencl-c.h -DNEW
+// RUN: %check_clang_tidy -check-suffix=AOCOLD %s fpga-single-work-item-barrier %t -- -config='{CheckOptions: [{key: fpga-single-work-item-barrier.AOCVersion, value: 1701}]}' -header-filter=.* "--" -cl-std=CL1.2 -c --include opencl-c.h -DAOCOLD
+// RUN: %check_clang_tidy -check-suffix=AOCNEW %s fpga-single-work-item-barrier %t -- -config='{CheckOptions: [{key: fpga-single-work-item-barrier.AOCVersion, value: 1701}]}' -header-filter=.* "--" -cl-std=CL2.0 -c --include opencl-c.h -DAOCNEW
 
-void __kernel error(__global int * foo, int size) {
-for (int j = 0; j < 256; j++) {
+#ifdef OLD
+void __kernel error_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
 	for (int i = 256; i < size; i+= 256) {
-		foo[j] += foo[j+i];
-	}
-}
-work_group_barrier(CLK_GLOBAL_MEM_FENCE);
-// CHECK-MESSAGES: :[[@LINE-7]]:15: warning: Kernel function 'error' does not call get_global_id or get_local_id and will be treated as single-work-item.{{[[:space:]]}}Barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:1 may error out [fpga-single-work-item-barrier]
-for (int i = 1; i < 256; i++) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-OLD: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id' does not call get_global_id or get_local_id and will be treated as single-work-item.{{[[:space:]]}}Barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 may error out [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
 	foo[0] += foo[i];
+  }
 }
 
+void __kernel success_barrier_global_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
 }
 
-void __kernel success(__global int * foo, int size) {
-int tid = get_global_id(0);
-for (int i = get_global_size(0); i < size; i+= get_global_size(0)) {
-	foo[tid] += foo[tid +i];
+void __kernel success_barrier_local_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
 }
-work_group_barrier(CLK_GLOBAL_MEM_FENCE);
-if (tid = 0) {
-	for (int i = 1; i < get_global_size(0); i++) {
-		foo[0] += foo[i];
-	}
+
+void __kernel success_barrier_both_ids(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
 }
+
+void success_nokernel_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
 }
+
+void success_nokernel_barrier_global_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void success_nokernel_barrier_local_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void success_nokernel_barrier_both_ids(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+#endif
+
+#ifdef NEW
+void __kernel error_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-NEW: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id' does not call get_global_id or get_local_id and will be treated as single-work-item.{{[[:space:]]}}Barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 may error out [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void __kernel success_barrier_global_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void __kernel success_barrier_local_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void __kernel success_barrier_both_ids(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+
+void success_nokernel_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void success_nokernel_barrier_global_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void success_nokernel_barrier_local_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void success_nokernel_barrier_both_ids(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+#endif
+
+#ifdef AOCOLD
+void __kernel error_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-AOCOLD: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id' does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient. [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+__attribute__ ((reqd_work_group_size(1,1,1)))
+void __kernel error_barrier_no_id_work_group_size(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-AOCOLD: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id_work_group_size' does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient. [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+__attribute__ ((reqd_work_group_size(2,1,1)))
+void __kernel success_barrier_no_id_work_group_size(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void __kernel success_barrier_global_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void __kernel success_barrier_local_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void __kernel success_barrier_both_ids(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+
+void success_nokernel_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void success_nokernel_barrier_global_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void success_nokernel_barrier_local_id(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void success_nokernel_barrier_both_ids(__global int * foo, int size) {
+  barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+#endif
+
+#ifdef AOCNEW
+void __kernel error_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-AOCNEW: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id' does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient. [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+__attribute__ ((reqd_work_group_size(1,1,1)))
+void __kernel error_barrier_no_id_work_group_size(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  // CHECK-MESSAGES-AOCNEW: :[[@LINE-7]]:15: warning: Kernel function 'error_barrier_no_id_work_group_size' does not call get_global_id or get_local_id may be a viable single work-item kernel, but barrier call at {{(\/)?([^\/\0]+(\/)?)+}}:[[@LINE-1]]:3 will force NDRange execution. If single work-item semantics are desired a mem_fence may be more efficient. [fpga-single-work-item-barrier]
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+__attribute__ ((reqd_work_group_size(2,1,1)))
+void __kernel success_barrier_no_id_work_group_size(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void __kernel success_barrier_global_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void __kernel success_barrier_local_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void __kernel success_barrier_both_ids(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+
+void success_nokernel_barrier_no_id(__global int * foo, int size) {
+  for (int j = 0; j < 256; j++) {
+	for (int i = 256; i < size; i+= 256) {
+      foo[j] += foo[j+i];
+    }
+  }
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  for (int i = 1; i < 256; i++) {
+	foo[0] += foo[i];
+  }
+}
+
+void success_nokernel_barrier_global_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_global_id(0);
+}
+
+void success_nokernel_barrier_local_id(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int tid = get_local_id(0);
+}
+
+void success_nokernel_barrier_both_ids(__global int * foo, int size) {
+  work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+  int gid = get_global_id(0);
+  int lid = get_local_id(0);
+}
+#endif

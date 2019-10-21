@@ -1,6 +1,6 @@
-.. title:: clang-tidy - FPGA-unroll-loops
+.. title:: clang-tidy - fpga-unroll-loops
 
-FPGA-unroll-loops
+fpga-unroll-loops
 =================
 
 Checks for inner loops that have not been unrolled. Unrolling

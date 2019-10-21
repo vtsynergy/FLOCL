@@ -1,6 +1,6 @@
-.. title:: clang-tidy - FPGA-ID-dependent-backward-branch
+.. title:: clang-tidy - fpga-id-dependent-backward-branch
 
-FPGA-ID-dependent-backward-branch
+fpga-id-dependent-backward-branch
 =================================
 
 Finds ID-dependent variables and fields that are used within loops. This causes
