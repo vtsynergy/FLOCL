@@ -259,30 +259,36 @@ bool PossiblyUnreachableBarrierCheck::isElseIfStmt(const MatchFinder::MatchResul
   return false;
 }
 
+bool flattenIfElse(const IfStmt *IfStatement, llvm::SmallVector<const Stmt *, 10> &IfElseStmts) {
+  const IfStmt * CurrentIfStmt = IfStatement;
+  // IfAnsc->dump();
+  IfElseStmts.push_back(CurrentIfStmt->getThen());
+  const Stmt *NextIfStmt = IfStatement->getElse();
+  for (; NextIfStmt != NULL && dyn_cast<IfStmt>(NextIfStmt);
+       NextIfStmt = CurrentIfStmt->getElse()) {
+    // If we are here then nextIf contains an IfStmt for an else-if branch
+    CurrentIfStmt = dyn_cast<IfStmt>(NextIfStmt);
+    IfElseStmts.push_back(CurrentIfStmt->getThen());
+  }
+  if (NextIfStmt == NULL) { // There is no final else
+    // then we cannot prove all threads execute the barrier, move on to
+    // diagnostics
+    return true;
+  }
+  // nextIf holds the actual final else statement
+  IfElseStmts.push_back(NextIfStmt);
+  return false;
+}
+
 bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::MatchResult &Result, const IfStmt *IfAnsc) {
   // If it is an else-if statement, do not evaluate
   if (isElseIfStmt(Result, IfAnsc))
     return true;
-  // First collapse all else/if branches into a struct to iterate over
-  std::list<const Stmt *> checks;
-  auto currIf = IfAnsc;
-  // IfAnsc->dump();
-  checks.push_back(currIf->getThen());
-  const Stmt *nextIf = IfAnsc->getElse();
-  for (; nextIf != NULL && dyn_cast<IfStmt>(nextIf);
-       nextIf = currIf->getElse()) {
-    // If we are here then nextIf contains an IfStmt for an else-if branch
-    currIf = dyn_cast<IfStmt>(nextIf);
-    checks.push_back(currIf->getThen());
-  }
-  if (nextIf == NULL) { // There is no final else
-    // then we cannot prove all threads execute the barrier, move on to
-    // diagnostics
+
+  llvm::SmallVector<const Stmt *, 10> checks;
+  if (flattenIfElse(IfAnsc, checks))
     return false;
-  }
-  // nextIf holds the actual final else statement
-  checks.push_back(nextIf);
-  
+
   // The list of branches to check is complete make sure they all call a
   // simple barrier the same number of times As soon as we find a non-simple
   // or uneven barrier, break to diags Only if we can guarantee all barriers
@@ -290,7 +296,8 @@ bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::M
   // false-positive
   std::list<const Stmt *> flatIfElse;
   preorderFlattenStmt(IfAnsc, &flatIfElse);
-  std::list<const Stmt *>::iterator currCase = checks.begin();
+  // flatIfElse contains all children of If statement
+  auto currCase = checks.begin();
   int maxBarriers = -1;
   int currBarriers = 0;
   for (auto itr = flatIfElse.begin();
@@ -304,24 +311,21 @@ bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::M
     // are starting the next case, or at the last element of this case Even if
     // the last element is a barrier call, the last element in the tree will be
     // some child of it, so we will have already counted the call
-    if (*itr == *(std::next(currCase, 1)) ||
-        std::next(itr, 1) == flatIfElse.end()) {
-      // llvm::errs() << "Found else, advancing\n";
-      // End of a case
+    
+    // If current statement == the first Else, OR this is the last element in
+    // flatIfElse
+    if (*itr == *(std::next(currCase, 1)) || std::next(itr, 1) == flatIfElse.end()) {
+      // If the number of barriers found is 0, break
       if (currBarriers == 0) {
-        //	llvm::errs() << "Aborting due to barrier-less case\n";
-        break; // Break out of the loop (if we are even looking at this switch
-               // at least one case has a barrier
-      }
-      if (maxBarriers != -1 && currBarriers != maxBarriers) {
-        //	llvm::errs() << "Aborting due to case with non-matching barrier
-        // count! this: " << currBarriers << " previous: " << maxBarriers <<
-        //"\n";
-        return false; // Some other case has a different number of consecutive barriers
-      }
+        break;
+      
+      // If the number of barriers doesn't match the number of branches,
+      // then it is not a false positive
+      if (maxBarriers != -1 && currBarriers != maxBarriers)
+        return false;
+
       if (maxBarriers == -1)
-        maxBarriers =
-            currBarriers; // This is the first case evaluated, set the number of
+        maxBarriers = currBarriers; // This is the first case evaluated, set the number of
                           // expected barriers for everyone else
       // If this case has passed, move on to the next
       currCase++;
