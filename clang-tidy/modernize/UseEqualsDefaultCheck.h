@@ -9,13 +9,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EQUALS_DEFAULT_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_USE_EQUALS_DEFAULT_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 
 namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// \brief Replace default bodies of special member functions with '= default;'.
+/// Replace default bodies of special member functions with '= default;'.
 /// \code
 ///   struct A {
 ///     A() {}

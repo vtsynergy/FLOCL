@@ -12,6 +12,7 @@
 #include "Diagnostics.h"
 #include "Headers.h"
 #include "index/Index.h"
+#include "index/Symbol.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
@@ -21,6 +22,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <memory>
 
@@ -51,14 +53,12 @@ private:
   std::vector<Fix> fixIncompleteType(const Type &T) const;
 
   /// Generates header insertion fixes for all symbols. Fixes are deduplicated.
-  std::vector<Fix> fixesForSymbols(llvm::ArrayRef<Symbol> Syms) const;
+  std::vector<Fix> fixesForSymbols(const SymbolSlab &Syms) const;
 
   struct UnresolvedName {
     std::string Name;   // E.g. "X" in foo::X.
     SourceLocation Loc; // Start location of the unresolved name.
-    // Lazily get the possible scopes of the unresolved name. `Sema` must be
-    // alive when this is called.
-    std::function<std::vector<std::string>()> GetScopes;
+    std::vector<std::string> Scopes; // Namespace scopes we should search in.
   };
 
   /// Records the last unresolved name seen by Sema.
@@ -79,6 +79,17 @@ private:
   // These collect the last unresolved name so that we can associate it with the
   // diagnostic.
   llvm::Optional<UnresolvedName> LastUnresolvedName;
+
+  // There can be multiple diagnostics that are caused by the same unresolved
+  // name or incomplete type in one parse, especially when code is
+  // copy-and-pasted without #includes. We cache the index results based on
+  // index requests.
+  mutable llvm::StringMap<SymbolSlab> FuzzyFindCache;
+  mutable llvm::DenseMap<SymbolID, SymbolSlab> LookupCache;
+  // Returns None if the number of index requests has reached the limit.
+  llvm::Optional<const SymbolSlab *>
+  fuzzyFindCached(const FuzzyFindRequest &Req) const;
+  llvm::Optional<const SymbolSlab *> lookupCached(const SymbolID &ID) const;
 };
 
 } // namespace clangd
