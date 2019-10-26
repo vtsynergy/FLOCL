@@ -294,111 +294,41 @@ bool PossiblyUnreachableBarrierCheck::isFalsePositiveIfStmt(const MatchFinder::M
   // or uneven barrier, break to diags Only if we can guarantee all barriers
   // are simple and evenly hit can we early-return to remove the
   // false-positive
-  std::list<const Stmt *> flatIfElse;
-  preorderFlattenStmt(IfAnsc, &flatIfElse);
-  // flatIfElse contains all children of If statement
-  auto currCase = checks.begin();
-  int maxBarriers = -1;
-  int currBarriers = 0;
-  for (auto itr = flatIfElse.begin();
-       itr != flatIfElse.end() && currCase != checks.end(); itr++) {
-    // printf("Evaluating Stmt: %x  currCase: %x\n", *itr, *currCase);
-    // If we're at a subsequent case but haven't been advanced from a
-    // breakstatment
-    //		printf("Checking reverse hack %x %x\n", *currCase,
-    //*(currCase.base()-1L)); We really want if (*itr == *(currCase+1)) but it
-    // doesn't compile correctly if (*itr == *((currCase.base())[-1])) { If we
-    // are starting the next case, or at the last element of this case Even if
-    // the last element is a barrier call, the last element in the tree will be
-    // some child of it, so we will have already counted the call
-    
-    // If current statement == the first Else, OR this is the last element in
-    // flatIfElse
-    if (*itr == *(std::next(currCase, 1)) || std::next(itr, 1) == flatIfElse.end()) {
-      // If the number of barriers found is 0, break
-      if (currBarriers == 0) {
-        break;
-      
-      // If the number of barriers doesn't match the number of branches,
-      // then it is not a false positive
-      if (maxBarriers != -1 && currBarriers != maxBarriers)
-        return false;
-
-      if (maxBarriers == -1)
-        maxBarriers = currBarriers; // This is the first case evaluated, set the number of
-                          // expected barriers for everyone else
-      // If this case has passed, move on to the next
-      currCase++;
-      // If we just processed our last case and haven't failed yet, then we can
-      // assume the barrier is safe and return!
-      if (currCase == checks.end()) {
-        //	llvm::errs() << "Checked all cases and barriers are provably
-        // executed by all routes\n";
-        return true;
+  std::list<const Stmt *> FlatIfElse;
+  preorderFlattenStmt(IfAnsc, &FlatIfElse);
+  // FlatIfElse now contains all children of If statement.
+  size_t CurrentIfElseStmt = 0;
+  int TargetNumBarriers = 0;
+  int CurrentNumBarriers = 0;
+  for (const Stmt * Statement : FlatIfElse) {
+    // If Statement is the next If/Else Stmt, or the last Stmt in FlatIfElse.
+    if (Statement == FlatIfElse.back() || 
+        Statement == checks[CurrentIfElseStmt + 1]) {
+      // If looking at the first If statement, record the number of barriers
+      // it has.
+      if (CurrentIfElseStmt == 0) {
+        TargetNumBarriers = CurrentNumBarriers;
       }
-    }
-    // Iterate until we hit currCase
-    if (*itr == *currCase) {
-      // whatever we need to do to start a new check
-      //    llvm::errs() << "Found currCase, starting count\n";
-      // currCase++
-      currBarriers = 0;
-    }
-    // Start recording barrier calls
-    if (auto call = dyn_cast<CallExpr>(*itr)) {
-      // TODO: CFG check to see if the function is known to call a barrier
-      if (const FunctionDecl *callDecl = call->getDirectCallee()) {
-        std::string name = callDecl->getNameAsString();
-        // If we call any extra functions, break
-        if (name != "" && name != "barrier" && name != "work_group_barrier") {
-          //    llvm::errs() << "Aborting due to non-barrier call, cannot check
-          //    across CFG for barrier\n";
-          return false; // If we call some non-barrier function, it may have a barrier,
-                 // abort
-          // TODO: Loosen this restriction so that non-barrier OpenCL builtins
-          // can be called.
-        }
-        currBarriers++;
+      // If the number of barriers doesn't match, then this is definitely not
+      // a false positive.
+      if (TargetNumBarriers != CurrentNumBarriers) {
+        return false;  // Number of barriers isn't the same in every check.
       }
-      // What are we calling? diag and abort
-      diag(call->getBeginLoc(),
-           "Cannot deduce type of call in if/else, flagging switch for "
-           "potentially unreachable barrier");
-      // call->dump();
+      CurrentNumBarriers = 0;  // Reset barrier count.
+      CurrentIfElseStmt++;  // Move to next If/Else statement.
+    }
+    // If Statement is a branch, cannot prove it is a false positive.
+    if (isa<IfStmt>(Statement) || isa<SwitchStmt>(Statement) ||
+        isa<ForStmt>(Statement) || isa<DoStmt>(Statement) ||
+        isa<WhileStmt>(Statement) || isa<ReturnStmt>(Statement) ||
+        isa<BreakStmt>(Statement) || isa<GotoStmt>(Statement)) {
+      // FIXME: recursively check if all cases of this branch have the same
+      // number of barrier calls instead of simply returning 'false'  
       return false;
     }
-    // If we hit any branches, break
-    if (isa<IfStmt>(*itr) || isa<SwitchStmt>(*itr) || isa<ForStmt>(*itr) ||
-        isa<DoStmt>(*itr) || isa<WhileStmt>(*itr) || isa<ReturnStmt>(*itr) ||
-        isa<BreakStmt>(*itr) || isa<GotoStmt>(*itr)) {
-      // If this branch is an ifStmt it may be the If or ElseIf of the outer
-      // context we are checking for barriers In that case we don't want to
-      // abort If it is the parent of currCase, then initialize the counters
-      // (initial if) If it is the parent of currCase+1, advance currCase,
-      // restart counters (else-if)
-      // TODO need a special case for when we hit the else
-      // If it is neither, then it must be an interior branch, so abort
-      bool isOuterIf = false;
-      if (const IfStmt *par = dyn_cast<IfStmt>(*itr)) {
-        for (auto cItr = par->child_begin(); cItr != par->child_end(); cItr++) {
-          // If the child is equal to currCase or currCase+1, then this If is
-          // safe to examine
-          if ((cItr != par->child_end()) &&
-              (*cItr == *currCase || *cItr == *(std::next(currCase, 1)))) {
-            isOuterIf = true;
-            break; // Out of the for loop
-          }
-        }
-      }
-      if (!isOuterIf) {
-        diag((*itr)->getBeginLoc(),
-             "Cannot guarantee barrier due to nested branch or jump");
-        break;
-      }
-    }
-    // If we hit any gotos, returns or other jumps, break
   }
-  return false;
+  // All branches have the same number of barriers, so it is a false positive
+  return true;
 }
 
 void PossiblyUnreachableBarrierCheck::check(
