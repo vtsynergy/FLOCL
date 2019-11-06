@@ -101,9 +101,9 @@ void PossiblyUnreachableBarrierCheck::registerMatchers(MatchFinder *Finder) {
                         //  )
                         ))
               .bind("for"),
-          // TODO, needs to not select elseifs, just the first if in a
+          // FIXME, needs to not select elseifs, just the first if in a
           // if/elseif/else tree
-          // TODO: I think I am going to implement that at the callback stage
+          // FIXME: I think I am going to implement that at the callback stage
           ifStmt(allOf(HAS_BAR_DESC,
                        hasCondition(COND_EXPR) //,
                        //	unless(hasParent(ifStmt(hasElse(this))))
@@ -370,19 +370,19 @@ void PossiblyUnreachableBarrierCheck::check(
     case FOR_LOOP:   // handle for loop
     case DO_LOOP:    // handle do loop
     case WHILE_LOOP: // handle while loop
-      // TODO: If it's a loop, make sure it's not unconditionally executed a
+      // FIXME: If it's a loop, make sure it's not unconditionally executed a
       // non-ID-dependent number of times (constant offset from TID)
       break;
 
-    // TODO: Needs to handle breaks, returns, and gotos
+    // FIXME: Needs to handle breaks, returns, and gotos
     case IF_STMT: { // handle if statement
       if (isFalsePositiveIfStmt(Result, IfAnsc))
         return;
     } break;
 
-    // TODO: needs to handle returns and gotos
+    // FIXME: needs to handle returns and gotos
     case SWITCH_STMT: { // handle switch statement
-      // TODO: If it's a switch, recursively check that all cases (and a
+      // FIXME: If it's a switch, recursively check that all cases (and a
       // default) have a barrier
       bool hasDefault = false;
       // llvm::errs() << "Diagnosing SwitchStmt";
@@ -412,7 +412,7 @@ void PossiblyUnreachableBarrierCheck::check(
       // logic So we need to iterate through each start Stmt until the next
       // BreakStmt is found (w.r.t the SwitchAnsc (inorder traversal of all
       // descendants of SwitchAnsc)
-      // TODO: Do we want to iterate over checks itself or SwitchAnsc?
+      // FIXME: Do we want to iterate over checks itself or SwitchAnsc?
       // Technically we will have tu jump up the tree to catch some statements
       // if there is more than one (not in a CompoundStmt) for a case (counting
       // BreakStmt)
@@ -478,7 +478,7 @@ void PossiblyUnreachableBarrierCheck::check(
         }
         // Start recording barrier calls
         if (auto call = dyn_cast<CallExpr>(*itr)) {
-          // TODO: CFG check to see if the function is known to call a barrier
+          // FIXME: CFG check to see if the function is known to call a barrier
           if (const FunctionDecl *callDecl = call->getDirectCallee()) {
             std::string name = callDecl->getNameAsString();
             // If we call any extra functions, break
@@ -488,7 +488,7 @@ void PossiblyUnreachableBarrierCheck::check(
               // CFG for barrier\n";
               break; // If we call some non-barrier function, it may have a
                      // barrier, abort
-              // TODO: Loosen this restriction so that non-barrier OpenCL
+              // FIXME: Loosen this restriction so that non-barrier OpenCL
               // builtins can be called.
             } else {
               currBarriers++;
@@ -557,7 +557,7 @@ void PossiblyUnreachableBarrierCheck::check(
 
 void PossiblyUnreachableBarrierCheck::preorderFlattenStmt(
     const Stmt *s, std::list<const Stmt *> *out) {
-  // TODO: Flatten a Stmt and all descendants recursively
+  // FIXME: Flatten a Stmt and all descendants recursively
   // Record ourselves, then iterate over all children
   // printf("flattening %x %x %x\n", s, s->child_begin(), s->child_end());
   out->push_back(s);
