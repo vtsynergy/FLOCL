@@ -67,6 +67,18 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New :doc:`altera <clang-tidy/modules/altera>` module.
+
+  Includes checks related to OpenCL for FPGA coding guidelines, based on the
+  `Altera SDK for OpenCL: Best Practices Guide
+  <https://www.altera.com/en_US/pdfs/literature/hb/opencl-sdk/aocl_optimization_guide.pdf>`_.
+
+- New :doc:`altera-struct-pack-align
+  <clang-tidy/checks/altera-struct-pack-align>` check.
+
+  Finds structs that are inefficiently packed or aligned and recommends
+  packing and/or aligning of said structs as needed.
+
 - New :doc:`bugprone-dynamic-static-initializers
   <clang-tidy/checks/bugprone-dynamic-static-initializers>` check.
 
