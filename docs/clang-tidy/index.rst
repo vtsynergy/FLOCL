@@ -59,6 +59,7 @@ Name prefix            Description
 ====================== =========================================================
 ``abseil-``            Checks related to Abseil library.
 ``android-``           Checks related to Android.
+``altera-``            Checks related to OpenCL programming for FPGAs.
 ``boost-``             Checks related to Boost library.
 ``bugprone-``          Checks that target bugprone code constructs.
 ``cert-``              Checks related to CERT Secure Coding Guidelines.

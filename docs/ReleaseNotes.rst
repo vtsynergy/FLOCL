@@ -67,6 +67,18 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New :doc:`altera <clang-tidy/modules/altera>` module.
+
+  Includes checks related to OpenCL for FPGA coding guidelines, based on the
+  `Altera SDK for OpenCL: Best Practices Guide
+  <https://www.altera.com/en_US/pdfs/literature/hb/opencl-sdk/aocl_optimization_guide.pdf>`_.
+
+- New :doc:`altera-kernel-name-restriction
+  <clang-tidy/checks/altera-kernel-name-restriction>` check.
+
+  Checks for cases where the kernel source file is named `kernel.cl`,
+  `Verilog.cl`, or `VHDL.cl`.
+
 - New :doc:`bugprone-dynamic-static-initializers
   <clang-tidy/checks/bugprone-dynamic-static-initializers>` check.
 
