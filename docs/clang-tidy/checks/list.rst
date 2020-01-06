@@ -22,6 +22,7 @@ Clang-Tidy Checks
    abseil-time-comparison
    abseil-time-subtraction
    abseil-upgrade-duration-conversions
+   altera-single-work-item-barrier
    android-cloexec-accept
    android-cloexec-accept4
    android-cloexec-creat
